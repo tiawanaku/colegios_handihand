@@ -1,0 +1,181 @@
+rue,nombre,dist,dependencia,tipo_convenio,nivel,turno,direccion,lat,lon,mujeres,hombres,docentes
+90000001,U.E. DEMO 001,2,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Noche y Tarde,"Zona Demo 2-1, Calle 79",-16.555313,-68.215531,632,649,67
+90000002,U.E. DEMO 002,8,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 8-24, Calle 66",-16.488474,-68.163227,429,381,42
+90000003,U.E. DEMO 003,9,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Noche,"Zona Demo 9-14, Calle 12",-16.517147,-68.179714,406,429,33
+90000004,U.E. DEMO 004,14,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Noche y Tarde,"Zona Demo 14-1, Calle 74",-16.538057,-68.23452,567,563,62
+90000005,U.E. DEMO 005,12,FISCAL,,Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 12-28, Calle 16",-16.4898,-68.195184,574,493,42
+90000006,U.E. DEMO 006,12,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde y Noche,"Zona Demo 12-9, Calle 2",-16.561027,-68.171323,236,258,18
+90000007,U.E. DEMO 007,8,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Noche,"Zona Demo 8-30, Calle 5",-16.465232,-68.212001,490,479,30
+90000008,U.E. DEMO 008,13,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 13-3, Calle 84",-16.533024,-68.19019,781,789,82
+90000009,U.E. DEMO 009,4,PRIVADA,,Primaria Comunitaria Vocacional,Mañana,"Zona Demo 4-18, Calle 11",-16.491784,-68.226145,29,31,4
+90000010,U.E. DEMO 010,10,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Mañana,"Zona Demo 10-19, Calle 99",-16.453856,-68.146716,372,349,24
+90000011,U.E. DEMO 011,12,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana y Tarde,"Zona Demo 12-5, Calle 76",-16.528279,-68.200555,675,774,48
+90000012,U.E. DEMO 012,3,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Noche,"Zona Demo 3-30, Calle 99",-16.451591,-68.24693,406,384,31
+90000013,U.E. DEMO 013,6,PRIVADA,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 6-14, Calle 80",-16.52463,-68.178214,333,332,23
+90000014,U.E. DEMO 014,12,FISCAL,,Inicial en Familia Comunitaria,Mañana,"Zona Demo 12-27, Calle 7",-16.510781,-68.159435,709,698,67
+90000015,U.E. DEMO 015,8,PRIVADA,,Inicial en Familia Comunitaria,Mañana,"Zona Demo 8-6, Calle 50",-16.532263,-68.186039,115,109,7
+90000016,U.E. DEMO 016,2,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Noche,"Zona Demo 2-11, Calle 67",-16.507154,-68.235587,332,337,22
+90000017,U.E. DEMO 017,9,FISCAL,,Inicial en Familia Comunitaria,Mañana,"Zona Demo 9-14, Calle 70",-16.471002,-68.148061,519,491,36
+90000018,U.E. DEMO 018,3,FISCAL,,Primaria Comunitaria Vocacional,Mañana,"Zona Demo 3-18, Calle 97",-16.496835,-68.224268,704,647,61
+90000019,U.E. DEMO 019,10,FISCAL,,Inicial en Familia Comunitaria,Mañana y Tarde,"Zona Demo 10-2, Calle 98",-16.52225,-68.153722,198,232,15
+90000020,U.E. DEMO 020,11,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 11-1, Calle 53",-16.461021,-68.141411,292,322,27
+90000021,U.E. DEMO 021,7,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana,"Zona Demo 7-22, Calle 72",-16.495822,-68.137667,330,384,31
+90000022,U.E. DEMO 022,6,PRIVADA,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 6-29, Calle 16",-16.482624,-68.146644,271,225,17
+90000023,U.E. DEMO 023,5,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 5-24, Calle 99",-16.469019,-68.235322,726,777,50
+90000024,U.E. DEMO 024,7,FISCAL,,Secundaria Comunitaria Productiva,Mañana y Noche,"Zona Demo 7-6, Calle 80",-16.550278,-68.245522,855,702,59
+90000025,U.E. DEMO 025,6,CONVENIO,Iglesia Católica,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 6-25, Calle 54",-16.485489,-68.157011,454,476,46
+90000026,U.E. DEMO 026,9,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 9-18, Calle 62",-16.514854,-68.134983,57,70,6
+90000027,U.E. DEMO 027,11,CONVENIO,Iglesia Evangélica,Secundaria Comunitaria Productiva,Noche,"Zona Demo 11-21, Calle 67",-16.474456,-68.2119,602,530,40
+90000028,U.E. DEMO 028,14,FISCAL,,Primaria Comunitaria Vocacional,Mañana,"Zona Demo 14-5, Calle 96",-16.456275,-68.202111,736,734,63
+90000029,U.E. DEMO 029,13,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 13-26, Calle 61",-16.457357,-68.169192,686,698,62
+90000030,U.E. DEMO 030,4,FISCAL,,Primaria Comunitaria Vocacional,Tarde,"Zona Demo 4-26, Calle 5",-16.488306,-68.239895,598,553,50
+90000031,U.E. DEMO 031,9,PRIVADA,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 9-13, Calle 49",-16.500322,-68.133469,293,353,21
+90000032,U.E. DEMO 032,11,PRIVADA,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 11-19, Calle 85",-16.470531,-68.230535,171,206,17
+90000033,U.E. DEMO 033,5,FISCAL,,Primaria Comunitaria Vocacional,Noche,"Zona Demo 5-20, Calle 83",-16.507399,-68.199282,617,752,45
+90000034,U.E. DEMO 034,13,PRIVADA,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 13-17, Calle 86",-16.459121,-68.172791,47,42,4
+90000035,U.E. DEMO 035,14,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana y Noche,"Zona Demo 14-5, Calle 14",-16.446796,-68.191852,667,640,42
+90000036,U.E. DEMO 036,14,PRIVADA,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Tarde y Mañana,"Zona Demo 14-16, Calle 16",-16.498329,-68.220357,206,210,18
+90000037,U.E. DEMO 037,11,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 11-22, Calle 29",-16.544799,-68.198088,342,377,27
+90000038,U.E. DEMO 038,6,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana y Noche,"Zona Demo 6-23, Calle 45",-16.473941,-68.207987,485,543,33
+90000039,U.E. DEMO 039,13,CONVENIO,Fe y Alegría,Primaria Comunitaria Vocacional,Tarde,"Zona Demo 13-11, Calle 35",-16.464058,-68.196666,303,325,31
+90000040,U.E. DEMO 040,9,CONVENIO,Fe y Alegría,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde y Noche,"Zona Demo 9-18, Calle 92",-16.5255,-68.200841,674,702,72
+90000041,U.E. DEMO 041,11,PRIVADA,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 11-1, Calle 35",-16.497929,-68.219739,245,224,20
+90000042,U.E. DEMO 042,10,PRIVADA,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 10-22, Calle 35",-16.525806,-68.156428,146,139,9
+90000043,U.E. DEMO 043,8,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 8-8, Calle 60",-16.540235,-68.169223,192,207,13
+90000044,U.E. DEMO 044,5,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 5-18, Calle 94",-16.503389,-68.222238,426,513,29
+90000045,U.E. DEMO 045,8,PRIVADA,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 8-2, Calle 83",-16.506199,-68.247387,210,184,13
+90000046,U.E. DEMO 046,6,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Noche y Tarde,"Zona Demo 6-2, Calle 53",-16.461448,-68.162893,331,371,25
+90000047,U.E. DEMO 047,11,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 11-6, Calle 10",-16.446337,-68.14638,693,739,71
+90000048,U.E. DEMO 048,13,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 13-14, Calle 66",-16.462342,-68.234822,487,542,49
+90000049,U.E. DEMO 049,13,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Noche y Tarde,"Zona Demo 13-18, Calle 25",-16.546761,-68.183843,598,572,58
+90000050,U.E. DEMO 050,12,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 12-18, Calle 89",-16.522202,-68.195125,174,191,18
+90000051,U.E. DEMO 051,12,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 12-29, Calle 70",-16.553961,-68.168353,266,266,22
+90000052,U.E. DEMO 052,3,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 3-23, Calle 90",-16.467385,-68.219133,407,395,26
+90000053,U.E. DEMO 053,1,FISCAL,,Primaria Comunitaria Vocacional,Mañana y Noche,"Zona Demo 1-16, Calle 28",-16.520318,-68.185697,270,303,18
+90000054,U.E. DEMO 054,7,PRIVADA,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 7-7, Calle 95",-16.541546,-68.159274,82,71,6
+90000055,U.E. DEMO 055,12,PRIVADA,,Inicial en Familia Comunitaria,Mañana,"Zona Demo 12-14, Calle 4",-16.499372,-68.232614,235,268,15
+90000056,U.E. DEMO 056,11,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Noche y Tarde,"Zona Demo 11-16, Calle 18",-16.552104,-68.232721,341,298,30
+90000057,U.E. DEMO 057,6,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Noche y Mañana,"Zona Demo 6-18, Calle 68",-16.466484,-68.136431,508,516,33
+90000058,U.E. DEMO 058,5,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana,"Zona Demo 5-19, Calle 14",-16.518652,-68.172544,629,531,42
+90000059,U.E. DEMO 059,8,CONVENIO,Iglesia Católica,Inicial en Familia Comunitaria,Mañana y Noche,"Zona Demo 8-18, Calle 33",-16.562812,-68.244457,144,151,15
+90000060,U.E. DEMO 060,13,CONVENIO,Iglesia Católica,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 13-13, Calle 31",-16.503309,-68.148188,835,713,64
+90000061,U.E. DEMO 061,1,FISCAL,,Primaria Comunitaria Vocacional,Mañana,"Zona Demo 1-13, Calle 62",-16.50141,-68.190125,638,646,61
+90000062,U.E. DEMO 062,7,PRIVADA,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana y Tarde,"Zona Demo 7-11, Calle 35",-16.472962,-68.146364,164,142,11
+90000063,U.E. DEMO 063,1,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Noche,"Zona Demo 1-15, Calle 52",-16.46807,-68.153792,118,117,7
+90000064,U.E. DEMO 064,7,FISCAL,,Inicial en Familia Comunitaria,Tarde,"Zona Demo 7-30, Calle 48",-16.554854,-68.229884,214,212,13
+90000065,U.E. DEMO 065,1,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 1-17, Calle 81",-16.452923,-68.135164,745,756,46
+90000066,U.E. DEMO 066,14,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana,"Zona Demo 14-7, Calle 1",-16.530572,-68.172438,646,769,56
+90000067,U.E. DEMO 067,5,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 5-15, Calle 12",-16.535926,-68.248184,275,272,22
+90000068,U.E. DEMO 068,9,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Noche,"Zona Demo 9-11, Calle 52",-16.531529,-68.172463,244,244,24
+90000069,U.E. DEMO 069,8,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Noche,"Zona Demo 8-19, Calle 67",-16.471525,-68.151268,189,157,13
+90000070,U.E. DEMO 070,14,PRIVADA,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana,"Zona Demo 14-3, Calle 90",-16.505238,-68.199764,32,29,4
+90000071,U.E. DEMO 071,6,FISCAL,,Secundaria Comunitaria Productiva,Noche,"Zona Demo 6-13, Calle 32",-16.451795,-68.178641,282,314,22
+90000072,U.E. DEMO 072,11,CONVENIO,Fe y Alegría,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Noche y Mañana,"Zona Demo 11-8, Calle 86",-16.508424,-68.136976,765,778,57
+90000073,U.E. DEMO 073,9,PRIVADA,,Inicial en Familia Comunitaria,Tarde,"Zona Demo 9-9, Calle 3",-16.511683,-68.214541,103,108,10
+90000074,U.E. DEMO 074,7,CONVENIO,Fe y Alegría,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana,"Zona Demo 7-28, Calle 50",-16.450608,-68.197347,368,377,29
+90000075,U.E. DEMO 075,12,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 12-1, Calle 27",-16.539401,-68.166113,147,141,9
+90000076,U.E. DEMO 076,13,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 13-11, Calle 83",-16.50062,-68.22508,401,467,33
+90000077,U.E. DEMO 077,5,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 5-2, Calle 95",-16.490457,-68.226553,219,220,21
+90000078,U.E. DEMO 078,14,FISCAL,,Primaria Comunitaria Vocacional,Noche y Tarde,"Zona Demo 14-10, Calle 95",-16.560661,-68.178405,672,802,64
+90000079,U.E. DEMO 079,9,FISCAL,,Secundaria Comunitaria Productiva,Noche y Tarde,"Zona Demo 9-17, Calle 29",-16.56338,-68.186918,419,379,33
+90000080,U.E. DEMO 080,10,FISCAL,,Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 10-6, Calle 63",-16.490867,-68.193254,141,158,9
+90000081,U.E. DEMO 081,3,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 3-15, Calle 77",-16.523359,-68.188089,257,268,16
+90000082,U.E. DEMO 082,11,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 11-15, Calle 81",-16.515335,-68.172762,401,378,25
+90000083,U.E. DEMO 083,14,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana,"Zona Demo 14-15, Calle 60",-16.45094,-68.1401,373,416,24
+90000084,U.E. DEMO 084,9,FISCAL,,Inicial en Familia Comunitaria,Noche,"Zona Demo 9-3, Calle 57",-16.505255,-68.196142,506,523,44
+90000085,U.E. DEMO 085,12,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 12-8, Calle 55",-16.551923,-68.135857,776,763,85
+90000086,U.E. DEMO 086,14,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Noche,"Zona Demo 14-25, Calle 10",-16.515741,-68.17395,264,279,20
+90000087,U.E. DEMO 087,13,CONVENIO,ONG,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Noche,"Zona Demo 13-9, Calle 5",-16.498338,-68.219791,662,656,52
+90000088,U.E. DEMO 088,5,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 5-9, Calle 40",-16.551761,-68.177231,547,592,63
+90000089,U.E. DEMO 089,4,CONVENIO,ONG,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Noche y Tarde,"Zona Demo 4-22, Calle 14",-16.447918,-68.145675,661,672,55
+90000090,U.E. DEMO 090,13,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 13-26, Calle 33",-16.47112,-68.248798,238,217,18
+90000091,U.E. DEMO 091,8,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde y Noche,"Zona Demo 8-28, Calle 91",-16.534116,-68.225251,415,451,48
+90000092,U.E. DEMO 092,2,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde,"Zona Demo 2-14, Calle 30",-16.551014,-68.13022,156,183,10
+90000093,U.E. DEMO 093,2,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 2-25, Calle 99",-16.461544,-68.200926,643,587,53
+90000094,U.E. DEMO 094,9,PRIVADA,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 9-18, Calle 22",-16.49221,-68.164096,171,162,17
+90000095,U.E. DEMO 095,8,CONVENIO,ONG,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 8-7, Calle 35",-16.449397,-68.19456,144,129,10
+90000096,U.E. DEMO 096,3,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 3-13, Calle 10",-16.462105,-68.248796,398,472,32
+90000097,U.E. DEMO 097,11,FISCAL,,Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 11-4, Calle 70",-16.556221,-68.222981,353,348,26
+90000098,U.E. DEMO 098,6,FISCAL,,Secundaria Comunitaria Productiva,Noche y Mañana,"Zona Demo 6-21, Calle 61",-16.521422,-68.22748,417,462,43
+90000099,U.E. DEMO 099,6,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Noche,"Zona Demo 6-26, Calle 69",-16.559094,-68.183352,353,314,21
+90000100,U.E. DEMO 100,4,PRIVADA,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 4-4, Calle 34",-16.448885,-68.151347,77,88,8
+90000101,U.E. DEMO 101,8,FISCAL,,Secundaria Comunitaria Productiva,Mañana,"Zona Demo 8-3, Calle 26",-16.4865,-68.137543,355,321,37
+90000102,U.E. DEMO 102,1,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Noche y Tarde,"Zona Demo 1-24, Calle 79",-16.538734,-68.207052,714,764,52
+90000103,U.E. DEMO 103,10,PRIVADA,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 10-18, Calle 82",-16.502025,-68.154287,333,281,23
+90000104,U.E. DEMO 104,14,PRIVADA,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 14-22, Calle 61",-16.516588,-68.164348,252,291,19
+90000105,U.E. DEMO 105,14,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Noche,"Zona Demo 14-15, Calle 88",-16.563925,-68.245392,356,293,24
+90000106,U.E. DEMO 106,8,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 8-27, Calle 56",-16.498256,-68.225888,460,502,40
+90000107,U.E. DEMO 107,7,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Noche y Mañana,"Zona Demo 7-24, Calle 43",-16.49901,-68.147305,850,728,54
+90000108,U.E. DEMO 108,5,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana,"Zona Demo 5-30, Calle 40",-16.49033,-68.194019,821,737,62
+90000109,U.E. DEMO 109,1,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde y Noche,"Zona Demo 1-25, Calle 50",-16.458346,-68.188669,798,706,51
+90000110,U.E. DEMO 110,6,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Noche,"Zona Demo 6-11, Calle 74",-16.455322,-68.136099,163,182,15
+90000111,U.E. DEMO 111,10,PRIVADA,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 10-24, Calle 10",-16.472986,-68.234537,309,281,19
+90000112,U.E. DEMO 112,5,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana y Tarde,"Zona Demo 5-23, Calle 1",-16.476364,-68.249946,476,431,50
+90000113,U.E. DEMO 113,1,PRIVADA,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana y Tarde,"Zona Demo 1-25, Calle 3",-16.493797,-68.237013,40,41,4
+90000114,U.E. DEMO 114,1,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 1-7, Calle 5",-16.527586,-68.131752,418,426,33
+90000115,U.E. DEMO 115,8,PRIVADA,,Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 8-12, Calle 11",-16.555378,-68.227708,182,190,17
+90000116,U.E. DEMO 116,9,FISCAL,,Primaria Comunitaria Vocacional,Noche,"Zona Demo 9-1, Calle 40",-16.545001,-68.226379,226,276,20
+90000117,U.E. DEMO 117,2,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 2-5, Calle 54",-16.512152,-68.188658,133,114,13
+90000118,U.E. DEMO 118,13,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 13-6, Calle 27",-16.493643,-68.188999,665,612,44
+90000119,U.E. DEMO 119,4,FISCAL,,Primaria Comunitaria Vocacional,Noche,"Zona Demo 4-18, Calle 16",-16.548759,-68.179927,434,505,29
+90000120,U.E. DEMO 120,10,CONVENIO,Iglesia Evangélica,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 10-2, Calle 55",-16.517568,-68.133986,344,379,23
+90000121,U.E. DEMO 121,6,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Noche y Tarde,"Zona Demo 6-24, Calle 12",-16.548424,-68.235761,228,253,15
+90000122,U.E. DEMO 122,11,PRIVADA,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 11-19, Calle 4",-16.445812,-68.146961,312,277,19
+90000123,U.E. DEMO 123,3,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 3-6, Calle 67",-16.538159,-68.193951,316,366,37
+90000124,U.E. DEMO 124,13,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana y Tarde,"Zona Demo 13-19, Calle 86",-16.498419,-68.248682,337,278,32
+90000125,U.E. DEMO 125,6,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Noche,"Zona Demo 6-28, Calle 23",-16.518908,-68.206263,631,729,46
+90000126,U.E. DEMO 126,7,PRIVADA,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 7-19, Calle 52",-16.489557,-68.229018,81,76,7
+90000127,U.E. DEMO 127,9,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana,"Zona Demo 9-25, Calle 89",-16.495403,-68.17783,260,256,22
+90000128,U.E. DEMO 128,4,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 4-24, Calle 47",-16.550699,-68.162335,100,114,7
+90000129,U.E. DEMO 129,1,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Noche,"Zona Demo 1-30, Calle 35",-16.537828,-68.174414,155,178,17
+90000130,U.E. DEMO 130,7,FISCAL,,Secundaria Comunitaria Productiva,Noche y Mañana,"Zona Demo 7-7, Calle 14",-16.518571,-68.244985,142,153,9
+90000131,U.E. DEMO 131,11,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 11-23, Calle 16",-16.554903,-68.186186,181,223,20
+90000132,U.E. DEMO 132,10,PRIVADA,,Secundaria Comunitaria Productiva,Tarde,"Zona Demo 10-28, Calle 68",-16.549009,-68.224302,90,88,6
+90000133,U.E. DEMO 133,7,PRIVADA,,Primaria Comunitaria Vocacional,Mañana,"Zona Demo 7-7, Calle 90",-16.467812,-68.187344,90,103,6
+90000134,U.E. DEMO 134,12,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde,"Zona Demo 12-10, Calle 22",-16.530657,-68.203505,694,846,53
+90000135,U.E. DEMO 135,6,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 6-20, Calle 81",-16.458749,-68.212749,718,662,47
+90000136,U.E. DEMO 136,11,FISCAL,,Primaria Comunitaria Vocacional,Mañana y Noche,"Zona Demo 11-24, Calle 7",-16.485593,-68.209136,631,704,60
+90000137,U.E. DEMO 137,10,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 10-8, Calle 30",-16.540601,-68.194127,454,500,31
+90000138,U.E. DEMO 138,14,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 14-20, Calle 52",-16.531241,-68.21564,366,332,22
+90000139,U.E. DEMO 139,10,FISCAL,,Inicial en Familia Comunitaria,Mañana y Noche,"Zona Demo 10-8, Calle 17",-16.465828,-68.203322,354,367,25
+90000140,U.E. DEMO 140,1,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 1-2, Calle 64",-16.497532,-68.229007,752,816,56
+90000141,U.E. DEMO 141,4,CONVENIO,ONG,Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 4-3, Calle 15",-16.564196,-68.156591,307,281,22
+90000142,U.E. DEMO 142,10,FISCAL,,Inicial en Familia Comunitaria,Noche,"Zona Demo 10-1, Calle 64",-16.562973,-68.239503,159,182,10
+90000143,U.E. DEMO 143,13,FISCAL,,Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 13-2, Calle 90",-16.519479,-68.132932,551,549,55
+90000144,U.E. DEMO 144,5,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Noche,"Zona Demo 5-7, Calle 15",-16.513174,-68.193054,237,273,20
+90000145,U.E. DEMO 145,8,CONVENIO,ONG,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde,"Zona Demo 8-15, Calle 18",-16.488019,-68.146573,342,351,36
+90000146,U.E. DEMO 146,9,CONVENIO,ONG,Inicial en Familia Comunitaria,Mañana,"Zona Demo 9-17, Calle 54",-16.451596,-68.231144,177,163,10
+90000147,U.E. DEMO 147,3,FISCAL,,Secundaria Comunitaria Productiva,Mañana,"Zona Demo 3-9, Calle 96",-16.453522,-68.239104,232,200,15
+90000148,U.E. DEMO 148,1,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Mañana,"Zona Demo 1-11, Calle 50",-16.450138,-68.190496,269,293,21
+90000149,U.E. DEMO 149,4,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 4-29, Calle 93",-16.533955,-68.249541,78,72,4
+90000150,U.E. DEMO 150,2,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Noche,"Zona Demo 2-30, Calle 6",-16.561645,-68.174225,395,359,26
+90000151,U.E. DEMO 151,9,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana,"Zona Demo 9-3, Calle 48",-16.513583,-68.219059,267,237,18
+90000152,U.E. DEMO 152,1,CONVENIO,ONG,Primaria Comunitaria Vocacional,Noche,"Zona Demo 1-3, Calle 2",-16.556554,-68.236234,404,355,26
+90000153,U.E. DEMO 153,14,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 14-30, Calle 63",-16.523178,-68.16969,158,130,10
+90000154,U.E. DEMO 154,11,CONVENIO,Fe y Alegría,Inicial en Familia Comunitaria,Tarde,"Zona Demo 11-28, Calle 81",-16.491763,-68.149574,342,333,24
+90000155,U.E. DEMO 155,14,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Mañana y Noche,"Zona Demo 14-16, Calle 81",-16.537368,-68.172886,323,369,24
+90000156,U.E. DEMO 156,10,PRIVADA,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 10-9, Calle 93",-16.504003,-68.210001,166,169,15
+90000157,U.E. DEMO 157,10,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Tarde y Noche,"Zona Demo 10-30, Calle 56",-16.475096,-68.157164,614,534,38
+90000158,U.E. DEMO 158,6,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Noche y Mañana,"Zona Demo 6-12, Calle 52",-16.555234,-68.205453,278,337,20
+90000159,U.E. DEMO 159,6,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Noche y Mañana,"Zona Demo 6-7, Calle 32",-16.556063,-68.176554,674,730,43
+90000160,U.E. DEMO 160,2,FISCAL,,Primaria Comunitaria Vocacional,Tarde y Noche,"Zona Demo 2-22, Calle 72",-16.502695,-68.201499,482,506,36
+90000161,U.E. DEMO 161,2,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Mañana y Tarde,"Zona Demo 2-8, Calle 84",-16.44653,-68.219657,117,101,6
+90000162,U.E. DEMO 162,14,FISCAL,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 14-22, Calle 47",-16.45085,-68.162384,247,218,15
+90000163,U.E. DEMO 163,2,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Tarde y Noche,"Zona Demo 2-30, Calle 64",-16.547552,-68.167213,491,486,33
+90000164,U.E. DEMO 164,7,FISCAL,,Inicial en Familia Comunitaria,Mañana,"Zona Demo 7-18, Calle 44",-16.549602,-68.131889,589,515,35
+90000165,U.E. DEMO 165,9,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde,"Zona Demo 9-16, Calle 66",-16.534561,-68.181012,428,427,35
+90000166,U.E. DEMO 166,13,PRIVADA,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Tarde y Mañana,"Zona Demo 13-12, Calle 47",-16.449224,-68.215017,225,274,19
+90000167,U.E. DEMO 167,4,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria,Tarde,"Zona Demo 4-3, Calle 51",-16.457881,-68.218641,277,297,26
+90000168,U.E. DEMO 168,9,FISCAL,,Educación Primaria para Adultos / Educación Secundaria para Adultos,Tarde y Mañana,"Zona Demo 9-2, Calle 26",-16.548332,-68.241419,468,445,48
+90000169,U.E. DEMO 169,8,FISCAL,,Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 8-16, Calle 63",-16.508968,-68.132795,362,358,24
+90000170,U.E. DEMO 170,6,PRIVADA,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana,"Zona Demo 6-19, Calle 23",-16.454657,-68.224341,230,224,15
+90000171,U.E. DEMO 171,9,FISCAL,,Primaria Comunitaria Vocacional,Tarde y Mañana,"Zona Demo 9-11, Calle 16",-16.550768,-68.180994,753,824,63
+90000172,U.E. DEMO 172,11,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Mañana,"Zona Demo 11-7, Calle 18",-16.538119,-68.230162,387,321,23
+90000173,U.E. DEMO 173,5,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Mañana,"Zona Demo 5-9, Calle 2",-16.529507,-68.151102,777,794,58
+90000174,U.E. DEMO 174,13,FISCAL,,Inicial en Familia Comunitaria / Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde,"Zona Demo 13-19, Calle 12",-16.459263,-68.188582,240,273,17
+90000175,U.E. DEMO 175,4,FISCAL,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Tarde y Noche,"Zona Demo 4-11, Calle 69",-16.519129,-68.229682,121,109,8
+90000176,U.E. DEMO 176,8,FISCAL,,Secundaria Comunitaria Productiva / Inicial en Familia Comunitaria,Noche,"Zona Demo 8-5, Calle 51",-16.520737,-68.241677,735,797,49
+90000177,U.E. DEMO 177,11,PRIVADA,,Primaria Comunitaria Vocacional / Inicial en Familia Comunitaria / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 11-6, Calle 61",-16.467866,-68.244182,371,315,23
+90000178,U.E. DEMO 178,6,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Mañana y Tarde,"Zona Demo 6-27, Calle 81",-16.503684,-68.24388,361,427,25
+90000179,U.E. DEMO 179,11,FISCAL,,Primaria Comunitaria Vocacional / Secundaria Comunitaria Productiva,Tarde y Noche,"Zona Demo 11-7, Calle 35",-16.50241,-68.187291,231,214,21
+90000180,U.E. DEMO 180,1,PRIVADA,,Secundaria Comunitaria Productiva / Primaria Comunitaria Vocacional,Mañana y Tarde,"Zona Demo 1-26, Calle 35",-16.539928,-68.15485,134,151,12

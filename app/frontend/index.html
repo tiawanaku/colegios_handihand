@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Colegios El Alto</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <h1>Unidades Educativas · El Alto</h1>
+  <span id="fuente" class="muted"></span>
+  <nav class="exports">
+    <a data-export="csv" href="#">CSV</a>
+    <a data-export="xlsx" href="#">Excel</a>
+    <a data-export="pdf" href="#">PDF</a>
+  </nav>
+</header>
+
+<main class="layout">
+  <aside class="filters" aria-label="Filtros">
+    <label>Buscar <input id="q" type="search" placeholder="Nombre, dirección, RUE…"></label>
+    <fieldset><legend>Dependencia</legend><div id="f-dependencia" class="chips"></div></fieldset>
+    <fieldset><legend>Nivel</legend><div id="f-nivel" class="chips"></div></fieldset>
+    <fieldset><legend>Turno</legend><div id="f-turno" class="chips"></div></fieldset>
+    <label>Distrito
+      <select id="f-distrito" multiple size="6"></select>
+    </label>
+    <button id="limpiar" type="button">Limpiar filtros</button>
+  </aside>
+
+  <section class="content">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="card"><h2>Mapa</h2><div id="map"></div><div id="legend" class="legend"></div></div>
+      <div class="card"><h2>Unidades por distrito y dependencia</h2><canvas id="ch-distrito"></canvas></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Dependencia</h2><canvas id="ch-dep"></canvas></div>
+      <div class="card"><h2>Oferta por nivel</h2><canvas id="ch-nivel"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Listado <span id="count" class="muted"></span></h2>
+      <div class="table-wrap">
+        <table id="tabla">
+          <thead><tr>
+            <th data-orden="nombre">Nombre</th><th data-orden="distrito_municipal">Dist.</th>
+            <th data-orden="dependencia">Dependencia</th><th>Dirección</th><th>Nivel</th><th>Turno</th>
+            <th data-orden="estudiantes_total">Estudiantes</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager"><button id="prev">‹</button><span id="pageinfo"></span><button id="next">›</button></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="detalle"><form method="dialog"><button class="close" aria-label="Cerrar">×</button></form><div id="detalle-body"></div></dialog>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

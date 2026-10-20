@@ -1,0 +1,16 @@
+{
+  "name": "colegios-recon",
+  "private": true,
+  "type": "module",
+  "description": "Ingeniería inversa del dashboard de educación de cuidados.elalto.gob.bo",
+  "scripts": {
+    "harvest": "node harvest.mjs",
+    "rea": "bash run_rea.sh",
+    "summary": "node summarize.mjs",
+    "all": "node harvest.mjs && bash run_rea.sh && node summarize.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1",
+    "rea-agents": "6.7.0"
+  }
+}
