@@ -3,7 +3,8 @@
 Ingeniería inversa del módulo educativo de [cuidados.elalto.gob.bo](https://cuidados.elalto.gob.bo/educacion/dashboard/) (unidades educativas **fiscales/públicas, de convenio y privadas**) y un sistema que lo replica y lo amplía.
 
 ```
-docs/      hallazgos, modelo de datos, mejoras y contrato del frontend (04-frontend.md)
+docs/      hallazgos, modelo de datos, mejoras, contrato del frontend y análisis de la BD real
+db/        vista SQL sobre la BD de cuidados (Django/PostgreSQL)
 recon/     kit REA + Playwright para extraer endpoints, UI y datos del sitio original
 app/       sistema mejorado: API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
 tests/     pruebas: API (pytest) y frontend end-to-end (npm run test:e2e)
@@ -19,7 +20,14 @@ uvicorn app.backend.main:app --reload                          # http://localhos
 pytest -q
 ```
 
-Datos reales: sigue los pasos de [`recon/README.md`](recon/README.md) y luego:
+**BD de cuidados (PostgreSQL)**: crea la vista y apunta el backend a la BD (detalles y calidad de datos en [`docs/05-bd-cuidados.md`](docs/05-bd-cuidados.md)):
+
+```bash
+psql -d cuidados -f db/vista_unidad_educativa.sql
+COLEGIOS_DB="postgresql+psycopg://usuario:clave@host/cuidados" uvicorn app.backend.main:app
+```
+
+Datos cosechados del sitio: sigue los pasos de [`recon/README.md`](recon/README.md) y luego:
 
 ```bash
 rm app/data/colegios.db

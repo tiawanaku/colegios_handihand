@@ -39,18 +39,20 @@ window.COLEGIOS_CONFIG = { apiBase: "https://mi-servidor/api" };
 
 ## Contrato (lo que `app.js` necesita)
 
-Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de cada uno: `dependencia`, `nivel`, `turno`, `distrito` y `q` (texto). Ejemplo: `?dependencia=FISCAL&dependencia=CONVENIO&distrito=8&q=san`.
+Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de cada uno: `dependencia`, `subsistema`, `nivel`, `turno`, `distrito` y `q` (texto). `nivel`, `turno` y `subsistema` comparan contra un ítem **exacto** de la lista. Ejemplo: `?dependencia=FISCAL&dependencia=CONVENIO&distrito=8&q=san`.
 
 | Endpoint | Respuesta mínima |
 |---|---|
-| `GET /catalogos` | `{dependencias: [str], niveles: [str], turnos: [str], distritos: [int], fuentes: [str]}` |
+| `GET /catalogos` | `{dependencias, subsistemas, niveles, turnos: [str], distritos: [int], fuentes: [str], campos: {matricula: bool}}`. Si `matricula` es `false`, se ocultan el KPI de estudiantes, la columna y el orden por estudiantes |
 | `GET /estadisticas?<filtros>` | `{total_unidades, por_dependencia: {DEP: n}, por_nivel: {NIVEL: n}, por_distrito: {"8": {DEP: n}}, estudiantes: {total}, ratio_estudiante_docente}` |
 | `GET /geojson?<filtros>` | `FeatureCollection` de puntos con `properties: {id, nombre, dependencia}` |
 | `GET /unidades?<filtros>&page&page_size&orden` | `{count, results: [{id, nombre, distrito_municipal, dependencia, direccion, niveles, turnos, estudiantes_total}]}`. `orden` puede ser `nombre`, `distrito_municipal`, `dependencia` o `estudiantes_total`, con `-` delante para orden descendente |
 | `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran) |
 | `GET /export.{csv,xlsx,pdf}?<filtros>` | Archivo (los botones sólo arman el enlace) |
 
-`niveles` y `turnos` son strings separados por comas con códigos (`INICIAL`, `MANANA`, …). Las etiquetas legibles salen del diccionario `LABEL` de `app.js`; un código desconocido se muestra tal cual.
+`niveles` y `turnos` son strings separados por comas: pueden ser códigos (`INICIAL`) o los valores del catálogo de la BD de cuidados (`PRIMARIA COMUNITARIA VOCACIONAL`). Las etiquetas salen del diccionario `LABEL` de `app.js`; un valor desconocido en MAYÚSCULAS se muestra en tipo oración, y el orden lógico está en `ORDEN`.
+
+Para la BD de cuidados (Django), ver `docs/05-bd-cuidados.md` y `db/vista_unidad_educativa.sql`.
 
 ## Decisiones de la lógica (mantenerlas al reutilizarla)
 

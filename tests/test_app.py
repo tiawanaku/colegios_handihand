@@ -110,3 +110,43 @@ def test_import_drf_and_geojson_shapes(client, tmp_path):
     assert imp.upsert(imp.read_file(geo), "t")["actualizados"] == 1  # mismo RUE: completa coordenadas
     r = client.get("/api/unidades", params={"q": "40730001"}).json()["results"][0]
     assert (r["lat"], r["turnos"], r["dependencia"]) == (-16.5, "MANANA", "PRIVADA")
+
+
+def test_filtro_por_item_exacto(client, tmp_path):
+    # Valores reales del catálogo de cuidados: 'ESPECIAL' no debe casar con 'EDUCACIÓN ESPECIAL ...'
+    data = tmp_path / "eav.json"
+    data.write_text(json.dumps([
+        {"nombre": "UE ESP", "dist": 1, "dependencia": "FISCAL"},
+        {"nombre": "UE ADUL", "dist": 1, "dependencia": "FISCAL"},
+    ]))
+    client.importer.upsert(client.importer.read_file(data), "t")
+    from sqlmodel import Session, select
+
+    from app.backend.db import engine
+    from app.backend.models import UnidadEducativa
+
+    with Session(engine) as s:  # como llegan de la vista SQL, sin normalizar
+        for nombre, niveles, turnos in [("UE ESP", "ESPECIAL", "MAÑANA"),
+                                        ("UE ADUL", "EDUCACIÓN PRIMARIA PARA ADULTOS,TÉCNICO MEDIO", "NOCHE")]:
+            row = s.exec(select(UnidadEducativa).where(UnidadEducativa.nombre == nombre)).one()
+            row.niveles, row.turnos = niveles, turnos
+        s.commit()
+    names = lambda **p: {r["nombre"] for r in client.get("/api/unidades", params={**p, "page_size": 500}).json()["results"]}
+    assert "UE ESP" in names(nivel="ESPECIAL") and "UE ADUL" not in names(nivel="ESPECIAL")
+    assert "UE ADUL" in names(nivel="TÉCNICO MEDIO")
+    assert names(nivel="PRIMARIA") & {"UE ADUL"} == set()   # 'PRIMARIA' ≠ 'EDUCACIÓN PRIMARIA PARA ADULTOS'
+    assert names(turno="MAÑANA") & {"UE ESP", "UE ADUL"} == {"UE ESP"}
+    assert names(nivel="100%_") == set()                     # comodines de LIKE escapados
+
+
+def test_sin_matricula_devuelve_null(client):
+    from sqlmodel import Session, SQLModel
+
+    from app.backend.db import engine
+
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+    client.importer.upsert([{"nombre": "UE SOLA", "dependencia": "PRIVADA"}], "t")
+    s = client.get("/api/estadisticas").json()
+    assert s["estudiantes"]["total"] is None and s["ratio_estudiante_docente"] is None
+    assert client.get("/api/catalogos").json()["campos"] == {"matricula": False}

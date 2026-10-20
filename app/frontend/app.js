@@ -7,19 +7,43 @@ const CONFIG = {
   pageSize: 25,
   mapCenter: [-16.505, -68.19], // El Alto
   mapZoom: 12,
+  // El mapa encuadra sólo los puntos dentro de esta zona (los que caen fuera se dibujan igual):
+  // así un par de coordenadas erróneas no alejan el zoom de toda la ciudad.
+  areaBounds: [[-16.65, -68.35], [-16.40, -68.05]],
   tiles: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   tilesAttribution: "© OpenStreetMap",
   ...(window.COLEGIOS_CONFIG || {}),
 };
 
-const FILTROS = ["dependencia", "nivel", "turno", "distrito"]; // multivalor, en el orden de la UI
+const FILTROS = ["dependencia", "subsistema", "nivel", "turno", "distrito"]; // multivalor, en el orden de la UI
 const ORDEN_DEFAULT = "nombre";
 
 const COLORS = { FISCAL: "--fiscal", CONVENIO: "--convenio", PRIVADA: "--privada", COMUNITARIA: "--comunitaria" };
 const LABEL = {
   FISCAL: "Fiscal (pública)", CONVENIO: "De convenio", PRIVADA: "Privada", COMUNITARIA: "Comunitaria",
-  INICIAL: "Inicial", PRIMARIA: "Primaria", SECUNDARIA: "Secundaria", ALTERNATIVA: "Alternativa / adultos",
+  INICIAL: "Inicial", PRIMARIA: "Primaria", SECUNDARIA: "Secundaria", ALTERNATIVA: "Alternativa",
   ESPECIAL: "Especial", TECNICA: "Técnica", MANANA: "Mañana", TARDE: "Tarde", NOCHE: "Noche", "SIN DATO": "Sin dato",
+  // valores del catálogo de la BD de cuidados (core_catalogogeneral); el resto se muestra en tipo oración
+  REGULAR: "Regular", PERMANENTE: "Permanente",
+  "INICIAL EN FAMILIA COMUNITARIA": "Inicial", "PRIMARIA COMUNITARIA VOCACIONAL": "Primaria",
+  "SECUNDARIA COMUNITARIA PRODUCTIVA": "Secundaria", "EDUCACIÓN PRIMARIA PARA ADULTOS": "Primaria adultos",
+  "EDUCACIÓN SECUNDARIA PARA ADULTOS": "Secundaria adultos",
+  "PERMANENTE CENTROS Y TALLERES DE APOYO": "Perm. talleres de apoyo", "PERMANENTE COMUNICACIÓN POR RADIO": "Perm. radio",
+  "PERMANENTE COMUNICACIÓN POR TELEVISIÓN": "Perm. televisión", "PERMANENTE EDUCACIÓN ADULTO MAYOR": "Perm. adulto mayor",
+  "PERMANENTE EDUCACIÓN COMUNITARIA": "Perm. comunitaria",
+};
+// Orden lógico de la oferta (lo desconocido va al final, alfabético)
+const ORDEN = {
+  dependencia: ["FISCAL", "CONVENIO", "PRIVADA", "COMUNITARIA"],
+  subsistema: ["REGULAR", "ALTERNATIVA", "ESPECIAL", "PERMANENTE"],
+  nivel: ["INICIAL", "INICIAL EN FAMILIA COMUNITARIA", "PRIMARIA", "PRIMARIA COMUNITARIA VOCACIONAL",
+    "SECUNDARIA", "SECUNDARIA COMUNITARIA PRODUCTIVA", "ALTERNATIVA", "EDUCACIÓN PRIMARIA PARA ADULTOS",
+    "EDUCACIÓN SECUNDARIA PARA ADULTOS", "TECNICA", "TÉCNICO AUXILIAR", "TÉCNICO BÁSICO", "TÉCNICO MEDIO", "OPERARIO", "ESPECIAL"],
+  turno: ["MANANA", "MAÑANA", "TARDE", "NOCHE"],
+};
+const porOrden = (lista) => (a, b) => {
+  const [i, j] = [lista.indexOf(a), lista.indexOf(b)];
+  return (i < 0) - (j < 0) || i - j || String(a).localeCompare(String(b), "es");
 };
 const KPI_DEP = { FISCAL: "Fiscales", CONVENIO: "De convenio", PRIVADA: "Privadas", COMUNITARIA: "Comunitarias" };
 
@@ -27,7 +51,8 @@ const KPI_DEP = { FISCAL: "Fiscales", CONVENIO: "De convenio", PRIVADA: "Privada
 const $ = (sel) => document.querySelector(sel);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const color = (dep) => cssVar(COLORS[dep] || "--sindato");
-const label = (k) => LABEL[k] ?? k;
+const tipoOracion = (s) => { const t = String(s).toLocaleLowerCase("es"); return t.charAt(0).toLocaleUpperCase("es") + t.slice(1); };
+const label = (k) => LABEL[k] ?? (k === String(k).toUpperCase() ? tipoOracion(k) : k);
 const labels = (csv) => (csv || "").split(",").filter(Boolean).map(label).join(", ");
 const fmt = (n) => (n == null || n === "" ? "—" : Number(n).toLocaleString("es-BO"));
 // Todo valor que venga de la BD pasa por esc() antes de tocar innerHTML (incluye tooltips de Leaflet).
@@ -99,11 +124,14 @@ const clearError = () => ($("#estado").hidden = true);
 // ---------------------------------------------------------------- filtros
 function renderChips(name, values, text = label) {
   const selected = new Set(state[name]);
+  $(`#f-${name}`).closest("fieldset").hidden = values.length === 0;
   $(`#f-${name}`).innerHTML = values.map((v) => {
     const val = esc(v);
-    return `<label><input type="checkbox" name="${name}" value="${val}"${selected.has(String(v)) ? " checked" : ""}>${esc(text(v))}</label>`;
+    return `<label title="${val}"><input type="checkbox" name="${name}" value="${val}"${selected.has(String(v)) ? " checked" : ""}>${esc(text(v))}</label>`;
   }).join("");
 }
+
+let conMatricula = true;
 
 function syncInputs() {
   $("#q").value = state.q;
@@ -113,9 +141,13 @@ function syncInputs() {
 
 async function loadCatalogos() {
   const c = await api("catalogos", "catalogos");
-  renderChips("dependencia", c.dependencias);
-  renderChips("nivel", c.niveles);
-  renderChips("turno", c.turnos);
+  renderChips("dependencia", [...c.dependencias].sort(porOrden(ORDEN.dependencia)));
+  renderChips("subsistema", [...(c.subsistemas || [])].sort(porOrden(ORDEN.subsistema)));
+  renderChips("nivel", [...c.niveles].sort(porOrden(ORDEN.nivel)));
+  renderChips("turno", [...c.turnos].sort(porOrden(ORDEN.turno)));
+  // Fuentes sin matrícula (p. ej. la BD de cuidados): se ocultan KPI, columna y orden por estudiantes
+  conMatricula = c.campos?.matricula !== false;
+  document.body.classList.toggle("sin-matricula", !conMatricula);
   renderChips("distrito", c.distritos.map(String), (d) => `D-${d}`);
   $("#fuente").textContent = c.fuentes?.length ? `Fuente: ${c.fuentes.join(", ")}` : "";
   $("#legend").innerHTML = c.dependencias
@@ -137,12 +169,14 @@ async function loadStats() {
   const kpis = [["Unidades educativas", s.total_unidades, "--accent"]];
   for (const [d, title] of Object.entries(KPI_DEP))
     if (d in dep || d !== "COMUNITARIA") kpis.push([title, dep[d] ?? 0, COLORS[d]]);
-  kpis.push(["Estudiantes", s.estudiantes?.total || null, "--comunitaria"]);
-  kpis.push(["Estudiante / docente", s.ratio_estudiante_docente, "--sindato"]);
+  if (conMatricula) {
+    kpis.push(["Estudiantes", s.estudiantes?.total, "--comunitaria"]);
+    kpis.push(["Estudiante / docente", s.ratio_estudiante_docente, "--sindato"]);
+  }
   $("#kpis").innerHTML = kpis
     .map(([t, v, c]) => `<div class="kpi" style="--c:var(${c})"><b>${fmt(v)}</b><span>${t}</span></div>`).join("");
 
-  const deps = Object.keys(dep);
+  const deps = Object.keys(dep).sort(porOrden(ORDEN.dependencia));
   chart("ch-dep", {
     type: "doughnut",
     data: { labels: deps.map(label), datasets: [{ data: deps.map((d) => dep[d]), backgroundColor: deps.map(color) }] },
@@ -159,11 +193,11 @@ async function loadStats() {
     options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { position: "bottom" } } },
   });
 
-  const niveles = Object.keys(s.por_nivel || {});
+  const niveles = Object.keys(s.por_nivel || {}).sort(porOrden(ORDEN.nivel));
   chart("ch-nivel", {
     type: "bar",
     data: { labels: niveles.map(label), datasets: [{ label: "Unidades", data: niveles.map((n) => s.por_nivel[n]), backgroundColor: color() }] },
-    options: { aspectRatio: 1.8, indexAxis: "y", scales: { x: { ticks: { precision: 0 } } }, plugins: { legend: { display: false } } },
+    options: { aspectRatio: niveles.length > 8 ? 1.1 : 1.8, indexAxis: "y", scales: { x: { ticks: { precision: 0 } } }, plugins: { legend: { display: false } } },
   });
 }
 
@@ -183,7 +217,10 @@ async function loadMap() {
     onEachFeature: (f, l) => l.bindTooltip(esc(f.properties.nombre)).on("click", () => showDetail(f.properties.id)),
   }).addTo(map);
   $("#map-vacio").hidden = gj.features.length > 0;
-  if (gj.features.length) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 15 });
+  const area = L.latLngBounds(CONFIG.areaBounds);
+  const dentro = gj.features.map((f) => L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0])).filter((ll) => area.contains(ll));
+  const bounds = dentro.length ? L.latLngBounds(dentro) : gj.features.length ? layer.getBounds() : null;
+  if (bounds) map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
 }
 
 // ---------------------------------------------------------------- tabla

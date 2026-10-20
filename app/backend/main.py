@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import literal
 from sqlmodel import Session, col, func, or_, select
 
 from .db import engine, init_db
@@ -46,6 +47,14 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
+def _en_lista(column, valores: list[str]):
+    """Ítem exacto dentro de una lista separada por comas ('A,B,C'): 'PRIMARIA' no debe casar con
+    'EDUCACIÓN PRIMARIA PARA ADULTOS'. Funciona igual en SQLite y PostgreSQL."""
+    envuelta = literal(",").concat(column).concat(",")
+    escapar = lambda v: v.upper().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return or_(*[envuelta.like(f"%,{escapar(v)},%", escape="\\") for v in valores])
+
+
 class Filtros:
     def __init__(
         self,
@@ -53,7 +62,7 @@ class Filtros:
         distrito: Annotated[list[int] | None, Query()] = None,
         nivel: Annotated[list[str] | None, Query(description="INICIAL, PRIMARIA, SECUNDARIA, ALTERNATIVA, ESPECIAL")] = None,
         turno: Annotated[list[str] | None, Query()] = None,
-        subsistema: str | None = None,
+        subsistema: Annotated[list[str] | None, Query(description="REGULAR, ALTERNATIVA, ESPECIAL, PERMANENTE")] = None,
         q: Annotated[str | None, Query(description="Busca en nombre, dirección, zona y RUE")] = None,
         bbox: Annotated[str | None, Query(description="minLon,minLat,maxLon,maxLat")] = None,
         con_coordenadas: bool | None = None,
@@ -68,11 +77,11 @@ class Filtros:
         if self.distrito:
             stmt = stmt.where(col(U.distrito_municipal).in_(self.distrito))
         if self.nivel:
-            stmt = stmt.where(or_(*[col(U.niveles).contains(n.upper()) for n in self.nivel]))
+            stmt = stmt.where(_en_lista(col(U.niveles), self.nivel))
         if self.turno:
-            stmt = stmt.where(or_(*[col(U.turnos).contains(t.upper()) for t in self.turno]))
+            stmt = stmt.where(_en_lista(col(U.turnos), self.turno))
         if self.subsistema:
-            stmt = stmt.where(U.subsistema == self.subsistema.upper())
+            stmt = stmt.where(_en_lista(col(U.subsistema), self.subsistema))
         if self.q:
             like = f"%{self.q.strip()}%"
             stmt = stmt.where(or_(col(U.nombre).ilike(like), col(U.direccion).ilike(like),
@@ -145,6 +154,7 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
     por_dep = Counter(r.dependencia or "SIN DATO" for r in rows)
     por_nivel: Counter = Counter()
     por_turno: Counter = Counter()
+    por_sub: Counter = Counter()
     distrito_dep: dict = defaultdict(Counter)
     est_dep: Counter = Counter()
     mujeres = hombres = docentes = 0
@@ -153,21 +163,27 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
             por_nivel[n] += 1
         for t in (r.turnos or "SIN DATO").split(","):
             por_turno[t] += 1
+        for x in (r.subsistema or "SIN DATO").split(","):
+            por_sub[x] += 1
         distrito_dep[r.distrito_municipal if r.distrito_municipal is not None else "SIN DATO"][r.dependencia or "SIN DATO"] += 1
         est_dep[r.dependencia or "SIN DATO"] += r.estudiantes_total or 0
         mujeres += r.estudiantes_mujeres or 0
         hombres += r.estudiantes_hombres or 0
         docentes += r.docentes or 0
-    total_est = sum(est_dep.values())
+    # Sin matrícula en la fuente: null (el frontend oculta el KPI) en vez de un 0 engañoso
+    hay_matricula = any(r.estudiantes_total is not None for r in rows)
+    total_est = sum(est_dep.values()) if hay_matricula else None
     return {
         "total_unidades": len(rows),
         "por_dependencia": dict(por_dep),
         "por_nivel": dict(por_nivel),
         "por_turno": dict(por_turno),
+        "por_subsistema": dict(por_sub),
         "por_distrito": {str(k): dict(v) for k, v in sorted(distrito_dep.items(), key=lambda kv: (isinstance(kv[0], str), kv[0]))},
-        "estudiantes": {"total": total_est, "mujeres": mujeres, "hombres": hombres, "por_dependencia": dict(est_dep)},
-        "docentes": docentes,
-        "ratio_estudiante_docente": round(total_est / docentes, 1) if docentes else None,
+        "estudiantes": {"total": total_est, "mujeres": mujeres if hay_matricula else None,
+                        "hombres": hombres if hay_matricula else None, "por_dependencia": dict(est_dep) if hay_matricula else {}},
+        "docentes": docentes or None,
+        "ratio_estudiante_docente": round(total_est / docentes, 1) if docentes and total_est else None,
         "sin_coordenadas": sum(1 for r in rows if r.lat is None or r.lon is None),
     }
 
@@ -176,14 +192,17 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
 def catalogos(session: SessionDep):
     U = UnidadEducativa
     distritos = session.exec(select(U.distrito_municipal).where(col(U.distrito_municipal).is_not(None)).distinct()).all()
-    niveles, turnos = set(), set()
-    for n, t in session.exec(select(U.niveles, U.turnos)).all():
+    niveles, turnos, subsistemas = set(), set(), set()
+    for n, t, sub in session.exec(select(U.niveles, U.turnos, U.subsistema)).all():
         niveles.update(filter(None, (n or "").split(",")))
         turnos.update(filter(None, (t or "").split(",")))
+        subsistemas.update(filter(None, (sub or "").split(",")))
     deps = session.exec(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct()).all()
     fuentes = session.exec(select(U.fuente).distinct()).all()
+    con_matricula = session.exec(select(U.id).where(col(U.estudiantes_total).is_not(None)).limit(1)).first() is not None
     return {"dependencias": sorted(deps), "distritos": sorted(distritos), "niveles": sorted(niveles),
-            "turnos": sorted(turnos), "fuentes": [f for f in fuentes if f]}
+            "turnos": sorted(turnos), "subsistemas": sorted(subsistemas), "fuentes": [f for f in fuentes if f],
+            "campos": {"matricula": con_matricula}}
 
 
 @app.get("/api/export.{fmt}", tags=["exportar"])

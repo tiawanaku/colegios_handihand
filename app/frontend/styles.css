@@ -43,6 +43,7 @@ th[data-orden] button:focus-visible { outline: 2px solid var(--accent); outline-
 th[aria-sort="ascending"] button::after { content: " ▲"; font-size: 10px; }
 th[aria-sort="descending"] button::after { content: " ▼"; font-size: 10px; }
 .num { text-align: right; }
+.sin-matricula .col-matricula, .sin-matricula td.num { display: none; }
 td.vacio { text-align: center; color: var(--muted); padding: 24px; }
 tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .estado { background: #fdecea; color: #8a1c12; border: 1px solid #f5c2bc; border-radius: 8px; padding: 10px 12px; }
@@ -52,7 +53,7 @@ tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px;
 .map-vacio { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; color: var(--muted); background: color-mix(in srgb, var(--card) 70%, transparent); z-index: 500; pointer-events: none; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--bg); }
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; color: #fff; font-size: 12px; }
+.badge { display: inline-block; white-space: nowrap; padding: 1px 8px; border-radius: 999px; color: #fff; font-size: 12px; }
 .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px; }
 .muted { color: var(--muted); font-weight: 400; }
 dialog { border: 0; border-radius: 12px; max-width: 560px; width: calc(100% - 32px); background: var(--card); color: var(--text); }
