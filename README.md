@@ -34,6 +34,11 @@ rm app/data/colegios.db
 python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados.elalto.gob.bo
 ```
 
+## Despliegue
+
+- **Servidor**: `docker build -t colegios . && docker run -p 8000:8000 -e COLEGIOS_DB="postgresql+psycopg://..." colegios`
+- **Página estática** (sin servidor, datos incrustados): `COLEGIOS_DB=... python -m app.build_static dist/colegios.html`
+
 ## API
 
 | Endpoint | Descripción |

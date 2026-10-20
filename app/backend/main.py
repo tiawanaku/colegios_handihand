@@ -118,7 +118,8 @@ def listar(
     total = session.exec(select(func.count()).select_from(base.subquery())).one()
     sort_col = getattr(UnidadEducativa, campo)
     rows = session.exec(
-        base.order_by(sort_col.desc() if desc else sort_col, UnidadEducativa.id)
+        # NULLS LAST explícito: PostgreSQL y SQLite difieren por defecto en DESC
+        base.order_by((sort_col.desc() if desc else sort_col.asc()).nulls_last(), UnidadEducativa.id)
         .offset((page - 1) * page_size).limit(page_size)
     ).all()
     return {"count": total, "page": page, "page_size": page_size, "results": rows}

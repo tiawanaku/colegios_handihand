@@ -77,7 +77,13 @@ function filterParams() {
   return p;
 }
 
+function renderFiltrosActivos() {
+  const n = FILTROS.reduce((acc, f) => acc + state[f].length, 0) + (state.q.trim() ? 1 : 0);
+  $("#filtros-activos").textContent = n ? `(${n} activos)` : "";
+}
+
 function writeUrl() {
+  renderFiltrosActivos();
   const p = filterParams();
   if (state.page > 1) p.set("page", state.page);
   if (state.orden !== ORDEN_DEFAULT) p.set("orden", state.orden);
@@ -96,6 +102,8 @@ async function api(channel, path, params) {
   const ctrl = (inflight[channel] = new AbortController());
   setBusy(+1);
   try {
+    // Modo estático (static-api.js): misma API, resuelta en el navegador
+    if (CONFIG.staticApi) return CONFIG.staticApi(path, params);
     const qs = params ? `?${params}` : "";
     const r = await fetch(`${CONFIG.apiBase}/${path}${qs}`, { signal: ctrl.signal, headers: { Accept: "application/json" } });
     if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
@@ -208,10 +216,11 @@ async function loadMap() {
   if (!map) {
     // preferCanvas: miles de marcadores sin crear un nodo SVG por cada uno
     map = L.map("map", { preferCanvas: true }).setView(CONFIG.mapCenter, CONFIG.mapZoom);
-    L.tileLayer(CONFIG.tiles, { maxZoom: 19, attribution: CONFIG.tilesAttribution }).addTo(map);
+    if (CONFIG.tiles) L.tileLayer(CONFIG.tiles, { maxZoom: 19, attribution: CONFIG.tilesAttribution }).addTo(map);
   }
   const gj = await api("map", "geojson", filterParams());
   layer?.remove();
+  if (!CONFIG.tiles) drawDistritos(gj);
   layer = L.geoJSON(gj, {
     pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 6, weight: 1, color: "#fff", fillOpacity: 0.9, fillColor: color(f.properties.dependencia) }),
     onEachFeature: (f, l) => l.bindTooltip(esc(f.properties.nombre)).on("click", () => showDetail(f.properties.id)),
@@ -221,6 +230,26 @@ async function loadMap() {
   const dentro = gj.features.map((f) => L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0])).filter((ll) => area.contains(ll));
   const bounds = dentro.length ? L.latLngBounds(dentro) : gj.features.length ? layer.getBounds() : null;
   if (bounds) map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+}
+
+// Sin mapa base (p. ej. donde los tiles están bloqueados): rótulos "D-n" en el centro de cada distrito
+let distritosLayer;
+
+function drawDistritos(gj) {
+  const acc = new Map();
+  for (const f of gj.features) {
+    const d = f.properties.distrito;
+    if (d == null) continue;
+    const a = acc.get(d) || { lat: 0, lon: 0, n: 0 };
+    a.lat += f.geometry.coordinates[1]; a.lon += f.geometry.coordinates[0]; a.n++;
+    acc.set(d, a);
+  }
+  distritosLayer?.remove();
+  distritosLayer = L.layerGroup([...acc].map(([d, a]) => L.marker([a.lat / a.n, a.lon / a.n], {
+    interactive: false, keyboard: false,
+    icon: L.divIcon({ className: "rotulo-distrito", html: `D-${esc(d)}`, iconSize: [40, 18] }),
+    zIndexOffset: 1000, // encima de los puntos
+  }))).addTo(map);
 }
 
 // ---------------------------------------------------------------- tabla
@@ -284,6 +313,9 @@ async function showDetail(id) {
 
 // ---------------------------------------------------------------- orquestación
 function updateExports() {
+  const nav = $(".exports"); // exportar necesita el backend; la versión estática no trae estos enlaces
+  if (!nav) return;
+  nav.hidden = Boolean(CONFIG.staticApi);
   const p = filterParams().toString();
   document.querySelectorAll("[data-export]").forEach((a) => (a.href = `${CONFIG.apiBase}/export.${a.dataset.export}${p ? `?${p}` : ""}`));
 }
@@ -344,6 +376,9 @@ async function init() {
   Chart.defaults.color = cssVar("--muted");
   Chart.defaults.borderColor = cssVar("--line");
   readUrl();
+  renderFiltrosActivos();
+  // En pantallas chicas los filtros empiezan plegados, para ver primero los indicadores
+  if (matchMedia("(max-width: 900px)").matches) $("#panel-filtros").open = false;
   bindEvents();
   try {
     await loadCatalogos();

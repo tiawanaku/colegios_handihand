@@ -20,6 +20,9 @@
 
 <main class="layout">
   <aside class="filters" aria-label="Filtros">
+   <details id="panel-filtros" open>
+    <summary>Filtros <span id="filtros-activos" class="muted"></span></summary>
+    <div class="filters-body">
     <label>Buscar <input id="q" type="search" placeholder="Nombre, dirección, RUE…"></label>
     <fieldset><legend>Dependencia</legend><div id="f-dependencia" class="chips"></div></fieldset>
     <fieldset><legend>Subsistema</legend><div id="f-subsistema" class="chips"></div></fieldset>
@@ -27,6 +30,8 @@
     <fieldset><legend>Turno</legend><div id="f-turno" class="chips"></div></fieldset>
     <fieldset><legend>Distrito</legend><div id="f-distrito" class="chips"></div></fieldset>
     <button id="limpiar" type="button">Limpiar filtros</button>
+    </div>
+   </details>
   </aside>
 
   <section class="content" aria-busy="true">
