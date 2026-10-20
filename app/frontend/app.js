@@ -1,138 +1,322 @@
+// Dashboard de unidades educativas. Sin build: JS plano + Leaflet + Chart.js.
+// Contrato de la API que consume: docs/04-frontend.md
+
+// ---------------------------------------------------------------- configuración
+const CONFIG = {
+  apiBase: "/api",             // otro backend: window.COLEGIOS_CONFIG = { apiBase: "https://.../api" }
+  pageSize: 25,
+  mapCenter: [-16.505, -68.19], // El Alto
+  mapZoom: 12,
+  tiles: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  tilesAttribution: "© OpenStreetMap",
+  ...(window.COLEGIOS_CONFIG || {}),
+};
+
+const FILTROS = ["dependencia", "nivel", "turno", "distrito"]; // multivalor, en el orden de la UI
+const ORDEN_DEFAULT = "nombre";
+
 const COLORS = { FISCAL: "--fiscal", CONVENIO: "--convenio", PRIVADA: "--privada", COMUNITARIA: "--comunitaria" };
-const color = (dep) => getComputedStyle(document.documentElement).getPropertyValue(COLORS[dep] || "--sindato").trim();
-const LABEL = { FISCAL: "Fiscal (pública)", CONVENIO: "De convenio", PRIVADA: "Privada", COMUNITARIA: "Comunitaria",
+const LABEL = {
+  FISCAL: "Fiscal (pública)", CONVENIO: "De convenio", PRIVADA: "Privada", COMUNITARIA: "Comunitaria",
   INICIAL: "Inicial", PRIMARIA: "Primaria", SECUNDARIA: "Secundaria", ALTERNATIVA: "Alternativa / adultos",
-  ESPECIAL: "Especial", TECNICA: "Técnica", MANANA: "Mañana", TARDE: "Tarde", NOCHE: "Noche" };
-const label = (k) => LABEL[k] || k;
-const fmt = (n) => (n ?? 0).toLocaleString("es-BO");
+  ESPECIAL: "Especial", TECNICA: "Técnica", MANANA: "Mañana", TARDE: "Tarde", NOCHE: "Noche", "SIN DATO": "Sin dato",
+};
+const KPI_DEP = { FISCAL: "Fiscales", CONVENIO: "De convenio", PRIVADA: "Privadas", COMUNITARIA: "Comunitarias" };
+
+// ---------------------------------------------------------------- utilidades
+const $ = (sel) => document.querySelector(sel);
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const color = (dep) => cssVar(COLORS[dep] || "--sindato");
+const label = (k) => LABEL[k] ?? k;
+const labels = (csv) => (csv || "").split(",").filter(Boolean).map(label).join(", ");
+const fmt = (n) => (n == null || n === "" ? "—" : Number(n).toLocaleString("es-BO"));
+// Todo valor que venga de la BD pasa por esc() antes de tocar innerHTML (incluye tooltips de Leaflet).
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = { page: 1, pageSize: 25, orden: "nombre" };
-const charts = {};
-let map, layer;
+// ---------------------------------------------------------------- estado (fuente única, sincronizado con la URL)
+const state = { q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
 
-function params(extra = {}) {
+function readUrl() {
+  const u = new URLSearchParams(location.search);
+  state.q = u.get("q") || "";
+  for (const f of FILTROS) state[f] = u.getAll(f);
+  state.page = Math.max(1, parseInt(u.get("page"), 10) || 1);
+  state.orden = u.get("orden") || ORDEN_DEFAULT;
+}
+
+/** Parámetros de filtro (sin paginación): los comparten estadísticas, mapa, tabla y exportación. */
+function filterParams() {
   const p = new URLSearchParams();
-  const q = document.getElementById("q").value.trim();
-  if (q) p.set("q", q);
-  for (const key of ["dependencia", "nivel", "turno"])
-    document.querySelectorAll(`#f-${key} input:checked`).forEach((i) => p.append(key, i.value));
-  [...document.getElementById("f-distrito").selectedOptions].forEach((o) => p.append("distrito", o.value));
-  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  if (state.q.trim()) p.set("q", state.q.trim());
+  for (const f of FILTROS) state[f].forEach((v) => p.append(f, v));
   return p;
 }
 
-const api = (path, p) => fetch(`/api/${path}?${p}`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+function writeUrl() {
+  const p = filterParams();
+  if (state.page > 1) p.set("page", state.page);
+  if (state.orden !== ORDEN_DEFAULT) p.set("orden", state.orden);
+  const qs = p.toString();
+  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+}
 
-function chips(id, values, name) {
-  document.getElementById(id).innerHTML = values
-    .map((v) => `<label><input type="checkbox" name="${name}" value="${esc(v)}">${esc(label(v))}</label>`).join("");
+// ---------------------------------------------------------------- red
+// Una petición viva por canal: si el usuario cambia filtros rápido, la anterior se aborta y
+// una respuesta vieja nunca pisa a una nueva.
+const inflight = {};
+let pending = 0;
+
+async function api(channel, path, params) {
+  inflight[channel]?.abort();
+  const ctrl = (inflight[channel] = new AbortController());
+  setBusy(+1);
+  try {
+    const qs = params ? `?${params}` : "";
+    const r = await fetch(`${CONFIG.apiBase}/${path}${qs}`, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+    if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    setBusy(-1);
+    if (inflight[channel] === ctrl) delete inflight[channel];
+  }
+}
+
+function setBusy(delta) {
+  pending += delta;
+  $(".content").setAttribute("aria-busy", String(pending > 0));
+}
+
+function showError(err) {
+  if (err?.name === "AbortError") return;
+  console.error(err);
+  const box = $("#estado");
+  box.textContent = `No se pudieron cargar los datos (${err.message}). Reintenta en unos segundos.`;
+  box.hidden = false;
+}
+
+const clearError = () => ($("#estado").hidden = true);
+
+// ---------------------------------------------------------------- filtros
+function renderChips(name, values, text = label) {
+  const selected = new Set(state[name]);
+  $(`#f-${name}`).innerHTML = values.map((v) => {
+    const val = esc(v);
+    return `<label><input type="checkbox" name="${name}" value="${val}"${selected.has(String(v)) ? " checked" : ""}>${esc(text(v))}</label>`;
+  }).join("");
+}
+
+function syncInputs() {
+  $("#q").value = state.q;
+  for (const f of FILTROS)
+    document.querySelectorAll(`#f-${f} input`).forEach((i) => (i.checked = state[f].includes(i.value)));
 }
 
 async function loadCatalogos() {
-  const c = await api("catalogos", "");
-  chips("f-dependencia", c.dependencias, "dependencia");
-  chips("f-nivel", c.niveles, "nivel");
-  chips("f-turno", c.turnos, "turno");
-  document.getElementById("f-distrito").innerHTML = c.distritos.map((d) => `<option value="${d}">Distrito ${d}</option>`).join("");
-  document.getElementById("fuente").textContent = c.fuentes.length ? `Fuente: ${c.fuentes.join(", ")}` : "";
-  document.getElementById("legend").innerHTML = c.dependencias
-    .map((d) => `<span><i style="background:${color(d)}"></i>${label(d)}</span>`).join("");
+  const c = await api("catalogos", "catalogos");
+  renderChips("dependencia", c.dependencias);
+  renderChips("nivel", c.niveles);
+  renderChips("turno", c.turnos);
+  renderChips("distrito", c.distritos.map(String), (d) => `D-${d}`);
+  $("#fuente").textContent = c.fuentes?.length ? `Fuente: ${c.fuentes.join(", ")}` : "";
+  $("#legend").innerHTML = c.dependencias
+    .map((d) => `<span><i style="background:${color(d)}"></i>${esc(label(d))}</span>`).join("");
+  return c;
 }
+
+// ---------------------------------------------------------------- KPIs y gráficos
+const charts = {};
 
 function chart(id, config) {
   charts[id]?.destroy();
-  charts[id] = new Chart(document.getElementById(id), config);
+  charts[id] = new Chart($(`#${id}`), config);
 }
 
 async function loadStats() {
-  const s = await api("estadisticas", params());
-  const dep = s.por_dependencia;
-  document.getElementById("kpis").innerHTML = [
-    ["Unidades educativas", s.total_unidades, "--accent"],
-    ["Fiscales", dep.FISCAL, "--fiscal"],
-    ["De convenio", dep.CONVENIO, "--convenio"],
-    ["Privadas", dep.PRIVADA, "--privada"],
-    ["Estudiantes", s.estudiantes.total, "--comunitaria"],
-    ["Estudiante / docente", s.ratio_estudiante_docente ?? "—", "--sindato"],
-  ].map(([t, v, c]) => `<div class="kpi" style="--c:var(${c})"><b>${typeof v === "number" ? fmt(v) : (v ?? 0)}</b><span>${t}</span></div>`).join("");
+  const s = await api("stats", "estadisticas", filterParams());
+  const dep = s.por_dependencia || {};
+  const kpis = [["Unidades educativas", s.total_unidades, "--accent"]];
+  for (const [d, title] of Object.entries(KPI_DEP))
+    if (d in dep || d !== "COMUNITARIA") kpis.push([title, dep[d] ?? 0, COLORS[d]]);
+  kpis.push(["Estudiantes", s.estudiantes?.total || null, "--comunitaria"]);
+  kpis.push(["Estudiante / docente", s.ratio_estudiante_docente, "--sindato"]);
+  $("#kpis").innerHTML = kpis
+    .map(([t, v, c]) => `<div class="kpi" style="--c:var(${c})"><b>${fmt(v)}</b><span>${t}</span></div>`).join("");
 
   const deps = Object.keys(dep);
-  chart("ch-dep", { type: "doughnut", data: { labels: deps.map(label), datasets: [{ data: deps.map((d) => dep[d]), backgroundColor: deps.map(color) }] },
-    options: { aspectRatio: 1.8, plugins: { legend: { position: "bottom" } } } });
+  chart("ch-dep", {
+    type: "doughnut",
+    data: { labels: deps.map(label), datasets: [{ data: deps.map((d) => dep[d]), backgroundColor: deps.map(color) }] },
+    options: { aspectRatio: 1.8, plugins: { legend: { position: "bottom" } } },
+  });
 
-  const distritos = Object.keys(s.por_distrito);
-  chart("ch-distrito", { type: "bar",
-    data: { labels: distritos.map((d) => (isNaN(d) ? d : `D-${d}`)),
-      datasets: deps.map((d) => ({ label: label(d), backgroundColor: color(d), data: distritos.map((k) => s.por_distrito[k][d] || 0) })) },
-    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: "bottom" } } } });
+  const distritos = Object.keys(s.por_distrito || {});
+  chart("ch-distrito", {
+    type: "bar",
+    data: {
+      labels: distritos.map((d) => (isNaN(d) ? label(d) : `D-${d}`)),
+      datasets: deps.map((d) => ({ label: label(d), backgroundColor: color(d), data: distritos.map((k) => s.por_distrito[k][d] || 0) })),
+    },
+    options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { position: "bottom" } } },
+  });
 
-  const niveles = Object.keys(s.por_nivel);
-  chart("ch-nivel", { type: "bar", data: { labels: niveles.map(label), datasets: [{ label: "Unidades", data: niveles.map((n) => s.por_nivel[n]), backgroundColor: color() }] },
-    options: { aspectRatio: 1.8, indexAxis: "y", plugins: { legend: { display: false } } } });
+  const niveles = Object.keys(s.por_nivel || {});
+  chart("ch-nivel", {
+    type: "bar",
+    data: { labels: niveles.map(label), datasets: [{ label: "Unidades", data: niveles.map((n) => s.por_nivel[n]), backgroundColor: color() }] },
+    options: { aspectRatio: 1.8, indexAxis: "y", scales: { x: { ticks: { precision: 0 } } }, plugins: { legend: { display: false } } },
+  });
 }
+
+// ---------------------------------------------------------------- mapa
+let map, layer;
 
 async function loadMap() {
   if (!map) {
-    map = L.map("map").setView([-16.505, -68.19], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    // preferCanvas: miles de marcadores sin crear un nodo SVG por cada uno
+    map = L.map("map", { preferCanvas: true }).setView(CONFIG.mapCenter, CONFIG.mapZoom);
+    L.tileLayer(CONFIG.tiles, { maxZoom: 19, attribution: CONFIG.tilesAttribution }).addTo(map);
   }
-  const gj = await api("geojson", params());
+  const gj = await api("map", "geojson", filterParams());
   layer?.remove();
   layer = L.geoJSON(gj, {
     pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 6, weight: 1, color: "#fff", fillOpacity: 0.9, fillColor: color(f.properties.dependencia) }),
-    onEachFeature: (f, l) => l.on("click", () => showDetail(f.properties.id)).bindTooltip(f.properties.nombre),
+    onEachFeature: (f, l) => l.bindTooltip(esc(f.properties.nombre)).on("click", () => showDetail(f.properties.id)),
   }).addTo(map);
+  $("#map-vacio").hidden = gj.features.length > 0;
   if (gj.features.length) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 15 });
 }
 
+// ---------------------------------------------------------------- tabla
 async function loadTable() {
-  const d = await api("unidades", params({ page: state.page, page_size: state.pageSize, orden: state.orden }));
-  document.getElementById("count").textContent = `(${fmt(d.count)})`;
-  document.querySelector("#tabla tbody").innerHTML = d.results.map((r) => `
-    <tr data-id="${r.id}">
-      <td>${esc(r.nombre)}</td><td>${r.distrito_municipal ?? ""}</td>
-      <td><span class="badge" style="background:${color(r.dependencia)}">${esc(label(r.dependencia || "S/D"))}</span></td>
-      <td>${esc(r.direccion)}</td><td>${esc((r.niveles || "").split(",").map(label).join(", "))}</td>
-      <td>${esc((r.turnos || "").split(",").map(label).join(", "))}</td><td>${r.estudiantes_total != null ? fmt(r.estudiantes_total) : ""}</td>
-    </tr>`).join("");
-  const pages = Math.max(1, Math.ceil(d.count / state.pageSize));
-  document.getElementById("pageinfo").textContent = `Página ${state.page} de ${pages}`;
-  document.getElementById("prev").disabled = state.page <= 1;
-  document.getElementById("next").disabled = state.page >= pages;
+  const p = filterParams();
+  p.set("page", state.page);
+  p.set("page_size", CONFIG.pageSize);
+  p.set("orden", state.orden);
+  const d = await api("table", "unidades", p);
+  const pages = Math.max(1, Math.ceil(d.count / CONFIG.pageSize));
+  if (state.page > pages) { // p. ej. URL compartida con una página que ya no existe
+    state.page = pages;
+    writeUrl();
+    return loadTable();
+  }
+  $("#count").textContent = `(${fmt(d.count)})`;
+  $("#tabla tbody").innerHTML = d.results.length
+    ? d.results.map((r) => `
+      <tr data-id="${esc(r.id)}" tabindex="0">
+        <td>${esc(r.nombre)}</td><td>${esc(r.distrito_municipal)}</td>
+        <td><span class="badge" style="background:${color(r.dependencia)}">${esc(label(r.dependencia || "SIN DATO"))}</span></td>
+        <td>${esc(r.direccion)}</td><td>${esc(labels(r.niveles))}</td>
+        <td>${esc(labels(r.turnos))}</td><td class="num">${r.estudiantes_total != null ? fmt(r.estudiantes_total) : ""}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="7" class="vacio">Ninguna unidad educativa coincide con los filtros.</td></tr>`;
+  $("#pageinfo").textContent = `Página ${state.page} de ${pages}`;
+  $("#prev").disabled = state.page <= 1;
+  $("#next").disabled = state.page >= pages;
+  renderSort();
 }
 
+function renderSort() {
+  const campo = state.orden.replace(/^-/, "");
+  const desc = state.orden.startsWith("-");
+  document.querySelectorAll("th[data-orden]").forEach((th) => {
+    th.setAttribute("aria-sort", th.dataset.orden === campo ? (desc ? "descending" : "ascending") : "none");
+  });
+}
+
+// ---------------------------------------------------------------- detalle
 async function showDetail(id) {
-  const r = await fetch(`/api/unidades/${id}`).then((x) => x.json());
-  const rows = [["RUE", r.codigo_rue], ["Dependencia", label(r.dependencia || "")], ["Convenio con", r.tipo_convenio],
-    ["Subsistema", r.subsistema], ["Niveles", (r.niveles || "").split(",").map(label).join(", ")],
-    ["Turnos", (r.turnos || "").split(",").map(label).join(", ")], ["Distrito", r.distrito_municipal], ["Zona", r.zona],
-    ["Dirección", r.direccion], ["Teléfono", r.telefono], ["Director/a", r.director],
-    ["Estudiantes", r.estudiantes_total != null ? `${fmt(r.estudiantes_total)} (M ${fmt(r.estudiantes_mujeres)} / H ${fmt(r.estudiantes_hombres)})` : null],
-    ["Docentes", r.docentes], ["Fuente", r.fuente]].filter(([, v]) => v != null && v !== "");
-  document.getElementById("detalle-body").innerHTML = `<h2>${esc(r.nombre)}</h2><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
-  document.getElementById("detalle").showModal();
+  try {
+    const r = await api("detail", `unidades/${encodeURIComponent(id)}`);
+    const est = r.estudiantes_total != null
+      ? `${fmt(r.estudiantes_total)}${r.estudiantes_mujeres != null ? ` (M ${fmt(r.estudiantes_mujeres)} / H ${fmt(r.estudiantes_hombres)})` : ""}`
+      : null;
+    const rows = [
+      ["RUE", r.codigo_rue], ["Dependencia", label(r.dependencia || "")], ["Convenio con", r.tipo_convenio],
+      ["Subsistema", r.subsistema], ["Niveles", labels(r.niveles)], ["Turnos", labels(r.turnos)],
+      ["Distrito", r.distrito_municipal], ["Zona", r.zona], ["Dirección", r.direccion], ["Teléfono", r.telefono],
+      ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes], ["Fuente", r.fuente],
+    ].filter(([, v]) => v != null && v !== "");
+    $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>
+      <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
+    const dlg = $("#detalle");
+    if (!dlg.open) dlg.showModal();
+  } catch (e) {
+    showError(e);
+  }
 }
 
+// ---------------------------------------------------------------- orquestación
+function updateExports() {
+  const p = filterParams().toString();
+  document.querySelectorAll("[data-export]").forEach((a) => (a.href = `${CONFIG.apiBase}/export.${a.dataset.export}${p ? `?${p}` : ""}`));
+}
+
+/** Filtros cambiaron: todo se recarga desde la página 1. */
 function refresh() {
   state.page = 1;
-  loadStats(); loadMap(); loadTable();
+  writeUrl();
+  updateExports();
+  clearError();
+  return Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
 }
 
-let t;
-document.getElementById("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(refresh, 300); });
-document.querySelector(".filters").addEventListener("change", refresh);
-document.getElementById("limpiar").onclick = () => {
-  document.querySelectorAll(".filters input[type=checkbox]").forEach((i) => (i.checked = false));
-  document.querySelectorAll("#f-distrito option").forEach((o) => (o.selected = false));
-  document.getElementById("q").value = ""; refresh();
-};
-document.getElementById("prev").onclick = () => { state.page--; loadTable(); };
-document.getElementById("next").onclick = () => { state.page++; loadTable(); };
-document.querySelectorAll("th[data-orden]").forEach((th) => th.onclick = () => {
-  const o = th.dataset.orden; state.orden = state.orden === o ? `-${o}` : o; state.page = 1; loadTable();
-});
-document.querySelector("#tabla tbody").addEventListener("click", (e) => { const tr = e.target.closest("tr"); if (tr) showDetail(tr.dataset.id); });
-document.querySelectorAll("[data-export]").forEach((a) => a.onclick = (e) => { e.preventDefault(); location.href = `/api/export.${a.dataset.export}?${params()}`; });
+/** Sólo cambió la página u orden: no hace falta recargar KPIs ni mapa. */
+function refreshTable() {
+  writeUrl();
+  loadTable().catch(showError);
+}
 
-loadCatalogos().then(refresh);
+function bindEvents() {
+  let timer;
+  $("#q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { state.q = e.target.value; refresh(); }, 300);
+  });
+  $(".filters").addEventListener("change", (e) => {
+    if (e.target.type !== "checkbox") return; // el buscador ya se maneja con "input"
+    state[e.target.name] = [...document.querySelectorAll(`#f-${e.target.name} input:checked`)].map((i) => i.value);
+    refresh();
+  });
+  $("#limpiar").addEventListener("click", () => {
+    clearTimeout(timer);
+    state.q = "";
+    for (const f of FILTROS) state[f] = [];
+    syncInputs();
+    refresh();
+  });
+  $("#prev").addEventListener("click", () => { state.page--; refreshTable(); });
+  $("#next").addEventListener("click", () => { state.page++; refreshTable(); });
+  document.querySelectorAll("th[data-orden] button").forEach((btn) => btn.addEventListener("click", () => {
+    const o = btn.closest("th").dataset.orden;
+    state.orden = state.orden === o ? `-${o}` : o;
+    state.page = 1;
+    refreshTable();
+  }));
+  const tbody = $("#tabla tbody");
+  tbody.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) showDetail(tr.dataset.id); });
+  tbody.addEventListener("keydown", (e) => {
+    const tr = e.target.closest("tr[data-id]");
+    if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showDetail(tr.dataset.id); }
+  });
+  const dlg = $("#detalle");
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // clic en el fondo
+  window.addEventListener("popstate", () => { readUrl(); syncInputs(); refresh(); });
+}
+
+async function init() {
+  Chart.defaults.color = cssVar("--muted");
+  Chart.defaults.borderColor = cssVar("--line");
+  readUrl();
+  bindEvents();
+  try {
+    await loadCatalogos();
+  } catch (e) {
+    showError(e);
+  }
+  syncInputs();
+  // Primera carga sin refresh(): respeta la página y el orden que traiga la URL compartida.
+  updateExports();
+  await Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
+}
+
+init();

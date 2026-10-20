@@ -3,10 +3,10 @@
 Ingeniería inversa del módulo educativo de [cuidados.elalto.gob.bo](https://cuidados.elalto.gob.bo/educacion/dashboard/) (unidades educativas **fiscales/públicas, de convenio y privadas**) y un sistema que lo replica y lo amplía.
 
 ```
-docs/      hallazgos de ingeniería inversa, modelo de datos y mejoras
+docs/      hallazgos, modelo de datos, mejoras y contrato del frontend (04-frontend.md)
 recon/     kit REA + Playwright para extraer endpoints, UI y datos del sitio original
 app/       sistema mejorado: API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
-tests/     pruebas (pytest)
+tests/     pruebas: API (pytest) y frontend end-to-end (npm run test:e2e)
 ```
 
 ## Arranque rápido

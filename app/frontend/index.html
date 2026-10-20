@@ -12,9 +12,9 @@
   <h1>Unidades Educativas · El Alto</h1>
   <span id="fuente" class="muted"></span>
   <nav class="exports">
-    <a data-export="csv" href="#">CSV</a>
-    <a data-export="xlsx" href="#">Excel</a>
-    <a data-export="pdf" href="#">PDF</a>
+    <a data-export="csv" href="#" download>CSV</a>
+    <a data-export="xlsx" href="#" download>Excel</a>
+    <a data-export="pdf" href="#" download>PDF</a>
   </nav>
 </header>
 
@@ -24,17 +24,16 @@
     <fieldset><legend>Dependencia</legend><div id="f-dependencia" class="chips"></div></fieldset>
     <fieldset><legend>Nivel</legend><div id="f-nivel" class="chips"></div></fieldset>
     <fieldset><legend>Turno</legend><div id="f-turno" class="chips"></div></fieldset>
-    <label>Distrito
-      <select id="f-distrito" multiple size="6"></select>
-    </label>
+    <fieldset><legend>Distrito</legend><div id="f-distrito" class="chips"></div></fieldset>
     <button id="limpiar" type="button">Limpiar filtros</button>
   </aside>
 
-  <section class="content">
-    <div class="kpis" id="kpis"></div>
+  <section class="content" aria-busy="true">
+    <div id="estado" class="estado" role="alert" hidden></div>
+    <div class="kpis" id="kpis" aria-live="polite"></div>
 
     <div class="grid2">
-      <div class="card"><h2>Mapa</h2><div id="map"></div><div id="legend" class="legend"></div></div>
+      <div class="card"><h2>Mapa</h2><div class="map-wrap"><div id="map"></div><p id="map-vacio" class="map-vacio" hidden>Sin unidades con coordenadas para estos filtros.</p></div><div id="legend" class="legend"></div></div>
       <div class="card"><h2>Unidades por distrito y dependencia</h2><canvas id="ch-distrito"></canvas></div>
     </div>
     <div class="grid2">
@@ -47,22 +46,25 @@
       <div class="table-wrap">
         <table id="tabla">
           <thead><tr>
-            <th data-orden="nombre">Nombre</th><th data-orden="distrito_municipal">Dist.</th>
-            <th data-orden="dependencia">Dependencia</th><th>Dirección</th><th>Nivel</th><th>Turno</th>
-            <th data-orden="estudiantes_total">Estudiantes</th>
+            <th data-orden="nombre" aria-sort="ascending"><button type="button">Nombre</button></th>
+            <th data-orden="distrito_municipal" aria-sort="none"><button type="button">Dist.</button></th>
+            <th data-orden="dependencia" aria-sort="none"><button type="button">Dependencia</button></th>
+            <th>Dirección</th><th>Nivel</th><th>Turno</th>
+            <th data-orden="estudiantes_total" aria-sort="none" class="num"><button type="button">Estudiantes</button></th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <div class="pager"><button id="prev">‹</button><span id="pageinfo"></span><button id="next">›</button></div>
+      <div class="pager"><button id="prev" type="button" aria-label="Página anterior">‹</button><span id="pageinfo" aria-live="polite"></span><button id="next" type="button" aria-label="Página siguiente">›</button></div>
     </div>
   </section>
 </main>
 
-<dialog id="detalle"><form method="dialog"><button class="close" aria-label="Cerrar">×</button></form><div id="detalle-body"></div></dialog>
+<dialog id="detalle" aria-labelledby="detalle-titulo"><form method="dialog"><button class="close" aria-label="Cerrar">×</button></form><div id="detalle-body"></div></dialog>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/chart.umd.js"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
