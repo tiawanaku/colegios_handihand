@@ -5,8 +5,8 @@
 
 Lee la tabla/vista `unidad_educativa` de COLEGIOS_DB, la incrusta como JSON y usa static-api.js para
 responder la misma API en el navegador. Leaflet y Chart.js se cargan de jsDelivr; su CSS va incrustado.
-Sin mapa base (los tiles de OpenStreetMap son una carga externa más): se dibujan rótulos de distrito.
-Pasa --tiles para incluir el mapa base de OpenStreetMap cuando el sitio de destino lo permita.
+Incluye mapa base (OpenStreetMap y, si no carga, CARTO); si ninguno está disponible se dibujan rótulos
+de distrito. Pasa --sin-tiles para no pedir mapas base externos.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def script_json(data) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-def build(fragment: bool, tiles: bool) -> str:
+def build(fragment: bool, tiles: bool = True) -> str:
     html = (FRONT / "index.html").read_text(encoding="utf-8")
     body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
     body = re.sub(r"\s*<script src=[^>]*></script>", "", body)  # los scripts se insertan abajo
@@ -70,7 +70,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("salida", type=Path)
     ap.add_argument("--fragment", action="store_true", help="sin <html>/<head>/<body>")
-    ap.add_argument("--tiles", action="store_true", help="incluir mapa base de OpenStreetMap")
+    ap.add_argument("--sin-tiles", dest="tiles", action="store_false", help="sin mapa base externo")
+    ap.add_argument("--tiles", action="store_true", help=argparse.SUPPRESS)  # antes era opcional; ahora es el defecto
     args = ap.parse_args()
     args.salida.parent.mkdir(parents=True, exist_ok=True)
     args.salida.write_text(build(args.fragment, args.tiles), encoding="utf-8")

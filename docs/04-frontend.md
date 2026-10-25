@@ -69,7 +69,7 @@ Para la BD de cuidados (Django), ver `docs/05-bd-cuidados.md` y `db/vista_unidad
 | Modo | Cómo | Notas |
 |---|---|---|
 | **Con servidor** (datos en vivo) | `docker build -t colegios . && docker run -p 8000:8000 -e COLEGIOS_DB=... colegios` | Incluye exportación CSV/Excel/PDF |
-| **Estático** (sin servidor) | `COLEGIOS_DB=... python -m app.build_static dist/colegios.html` | Una sola página HTML con los datos incrustados. `static-api.js` responde la misma API en el navegador. Sirve para GitHub Pages, intranet o un USB. Sin exportaciones. Agrega `--tiles` si el sitio permite cargar el mapa base de OpenStreetMap |
+| **Estático** (sin servidor) | `COLEGIOS_DB=... python -m app.build_static dist/colegios.html` | Una sola página HTML con los datos incrustados. `static-api.js` responde la misma API en el navegador. Sirve para GitHub Pages, intranet o un USB. Sin exportaciones. Incluye mapa base (OpenStreetMap, con CARTO de respaldo); `--sin-tiles` lo omite |
 
 `tests/e2e/static.test.mjs` verifica que el modo estático responda **igual** que el backend en unas 30 combinaciones de filtros (con `COLEGIOS_DB` compara contra esa BD).
 

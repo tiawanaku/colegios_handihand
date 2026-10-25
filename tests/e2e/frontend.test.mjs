@@ -12,6 +12,8 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const PORT = 8090 + Math.floor(Math.random() * 500);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PY = process.env.PYTHON || "python3";
+const TILES = /openstreetmap\.org|cartocdn\.com/;
+const TILE_PNG = path.join(ROOT, "app/frontend/vendor/leaflet/images/layers.png"); // cualquier PNG sirve de tile
 const USUARIO = "e2e", CLAVE = "clave-e2e-123";
 let server, browser, tmp, cookie;
 
@@ -64,7 +66,7 @@ async function open(query = "") {
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && page.errors.push(m.text()));
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort()); // sin red externa en CI
+  await page.route(TILES, (r) => r.abort()); // sin red externa en CI
   await page.goto(`${BASE}/${query}`);
   await settle(page);
   return page;
@@ -167,7 +169,7 @@ test("sin resultados y errores del servidor se muestran al usuario", async () =>
 
 test("login: sin sesión redirige, credenciales malas avisan, las buenas entran y Salir cierra", async () => {
   const page = await browser.newPage();
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.route(TILES, (r) => r.abort());
   await page.goto(`${BASE}/?dependencia=FISCAL`);
   assert.match(page.url(), /\/login\.html$/);
   assert.equal((await fetch(`${BASE}/api/unidades`)).status, 401);
@@ -188,5 +190,66 @@ test("login: sin sesión redirige, credenciales malas avisan, las buenas entran 
   await page.waitForURL(/\/login\.html$/);
   await page.goto(`${BASE}/`);
   assert.match(page.url(), /\/login\.html$/, "tras salir, el dashboard vuelve a pedir login");
+  await page.context().close();
+});
+
+/** Página con sesión cuyo mapa base responde según `tiles(route)`. */
+async function openConTiles(tiles, { sinLeaflet = false, noReferrer = false } = {}) {
+  const ctx = await browser.newContext();
+  const [name, value] = cookie.split(/=(.*)/);
+  await ctx.addCookies([{ name, value, url: BASE }]);
+  const page = await ctx.newPage();
+  page.errors = [];
+  page.on("pageerror", (e) => page.errors.push(e.message));
+  page.pedidos = [];
+  await page.route(TILES, (r) => { page.pedidos.push({ url: r.request().url(), referer: r.request().headers().referer }); return tiles(r); });
+  if (sinLeaflet) await page.route(/leaflet\.js$/, (r) => r.abort());
+  if (noReferrer) { // como un nginx con "Referrer-Policy: no-referrer": OSM respondería 403
+    await page.route(`${BASE}/`, async (r) => {
+      const resp = await r.fetch();
+      await r.fulfill({ response: resp, headers: { ...resp.headers(), "referrer-policy": "no-referrer" } });
+    });
+  }
+  await page.goto(`${BASE}/`);
+  await settle(page);
+  return page;
+}
+
+const imgsDeTiles = (page) => page.locator("#map img.leaflet-tile-loaded").count();
+
+test("mapa: muestra el mapa base de OpenStreetMap y lo pide con Referer aunque el sitio diga no-referrer", async () => {
+  const page = await openConTiles((r) => r.fulfill({ path: TILE_PNG, contentType: "image/png" }), { noReferrer: true });
+  await page.waitForFunction(() => document.querySelectorAll("#map img.leaflet-tile-loaded").length > 0);
+  assert.ok(page.pedidos.every((p) => p.url.includes("tile.openstreetmap.org")), "sólo OSM mientras funcione");
+  assert.ok(page.pedidos.every((p) => p.referer?.startsWith(BASE)), "OSM exige Referer");
+  assert.equal(await page.locator(".rotulo-distrito").count(), 0);
+  assert.ok((await page.locator("#map").boundingBox()).height > 300, "el contenedor del mapa tiene alto");
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test("mapa: si OpenStreetMap rechaza los tiles, usa CARTO", async () => {
+  const page = await openConTiles((r) => (/openstreetmap/.test(r.request().url())
+    ? r.fulfill({ status: 403, body: "Referer is required" })
+    : r.fulfill({ path: TILE_PNG, contentType: "image/png" })));
+  await page.waitForFunction(() => [...document.querySelectorAll("#map img.leaflet-tile-loaded")].some((i) => i.src.includes("cartocdn")));
+  assert.equal(await page.locator("#map img[src*=openstreetmap]").count(), 0, "la capa de OSM se retira");
+  await page.context().close();
+});
+
+test("mapa: sin ningún mapa base dibuja rótulos de distrito y sigue mostrando los puntos", async () => {
+  const page = await openConTiles((r) => r.abort());
+  await page.locator(".rotulo-distrito").first().waitFor();
+  assert.ok(await page.locator("#map.sin-mapa-base").count());
+  assert.equal(await imgsDeTiles(page), 0);
+  assert.ok(await page.locator("#map-vacio").isHidden());
+  await page.context().close();
+});
+
+test("mapa: si Leaflet no carga, avisa y el resto del dashboard funciona", async () => {
+  const page = await openConTiles((r) => r.abort(), { sinLeaflet: true });
+  assert.match(await page.locator("#map-vacio").innerText(), /No se pudo cargar el mapa/);
+  assert.equal(await kpiTotal(page), "182");
+  assert.equal(await page.locator("#tabla tbody tr").count(), 25);
   await page.context().close();
 });

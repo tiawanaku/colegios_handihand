@@ -10,8 +10,12 @@ const CONFIG = {
   // El mapa encuadra sólo los puntos dentro de esta zona (los que caen fuera se dibujan igual):
   // así un par de coordenadas erróneas no alejan el zoom de toda la ciudad.
   areaBounds: [[-16.65, -68.35], [-16.40, -68.05]],
-  tiles: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  tilesAttribution: "© OpenStreetMap",
+  // Mapas base en orden de preferencia: si uno no carga (bloqueado, sin Referer, sin red) se pasa al
+  // siguiente, y sin ninguno se dibujan rótulos de distrito. `tiles: null` desactiva el mapa base.
+  tiles: [
+    { url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap" },
+    { url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", attribution: "© OpenStreetMap © CARTO" },
+  ],
   ...(window.COLEGIOS_CONFIG || {}),
 };
 
@@ -210,17 +214,55 @@ async function loadStats() {
 }
 
 // ---------------------------------------------------------------- mapa
-let map, layer;
+let map, layer, ultimoGeojson, sinMapaBase = false;
+
+/** Lista de mapas base de la configuración (acepta también una URL suelta, como en versiones anteriores). */
+function proveedores() {
+  const t = CONFIG.tiles;
+  if (!t) return [];
+  return (Array.isArray(t) ? t : [t]).map((p) => (typeof p === "string" ? { url: p, attribution: CONFIG.tilesAttribution } : p));
+}
+
+/** Prueba los mapas base en orden. Un proveedor se descarta si sus primeros tiles fallan sin que cargue ninguno. */
+function addBaseLayer(lista) {
+  if (!lista.length) {
+    sinMapaBase = true;
+    $("#map").classList.add("sin-mapa-base");
+    if (ultimoGeojson) drawDistritos(ultimoGeojson);
+    return;
+  }
+  const [p, ...resto] = lista;
+  // referrerPolicy: OpenStreetMap rechaza (403) los tiles pedidos sin Referer, p. ej. tras un
+  // proxy con "Referrer-Policy: no-referrer"; así se envía al menos el origen del sitio.
+  const tl = L.tileLayer(p.url, { maxZoom: 19, attribution: p.attribution, referrerPolicy: "strict-origin-when-cross-origin" });
+  let cargados = 0, fallos = 0;
+  tl.on("tileload", () => cargados++);
+  tl.on("tileerror", () => {
+    if (++fallos < 4 || cargados > 0 || !map.hasLayer(tl)) return;
+    tl.remove();
+    console.warn(`Mapa base no disponible: ${p.url}`);
+    addBaseLayer(resto);
+  });
+  tl.addTo(map);
+}
 
 async function loadMap() {
+  if (typeof L === "undefined") { // Leaflet no cargó (CDN bloqueado): el resto del dashboard sigue
+    $("#map-vacio").textContent = "No se pudo cargar el mapa (Leaflet).";
+    $("#map-vacio").hidden = false;
+    return;
+  }
   if (!map) {
     // preferCanvas: miles de marcadores sin crear un nodo SVG por cada uno
     map = L.map("map", { preferCanvas: true }).setView(CONFIG.mapCenter, CONFIG.mapZoom);
-    if (CONFIG.tiles) L.tileLayer(CONFIG.tiles, { maxZoom: 19, attribution: CONFIG.tilesAttribution }).addTo(map);
+    addBaseLayer(proveedores());
+    // Si el contenedor cambia de tamaño (carga de estilos, rotación, panel de filtros) Leaflet debe
+    // recalcularlo; si no, quedan franjas grises sin tiles.
+    new ResizeObserver(() => map.invalidateSize()).observe($("#map"));
   }
-  const gj = await api("map", "geojson", filterParams());
+  const gj = (ultimoGeojson = await api("map", "geojson", filterParams()));
   layer?.remove();
-  if (!CONFIG.tiles) drawDistritos(gj);
+  if (sinMapaBase) drawDistritos(gj);
   layer = L.geoJSON(gj, {
     pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 6, weight: 1, color: "#fff", fillOpacity: 0.9, fillColor: color(f.properties.dependencia) }),
     onEachFeature: (f, l) => l.bindTooltip(esc(f.properties.nombre)).on("click", () => showDetail(f.properties.id)),

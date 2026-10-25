@@ -57,7 +57,7 @@ La página estática (`app.build_static`) no tiene login: quien tenga el archivo
 
 - **Servidor**: `docker build -t colegios . && docker run -p 8000:8000 -v colegios-usuarios:/datos -e COLEGIOS_AUTH_DB=sqlite:////datos/usuarios.db -e COLEGIOS_SECRET=... -e COLEGIOS_DB="postgresql+psycopg://..." colegios`
   (crear usuarios: `docker exec -it <contenedor> python -m app.backend.auth crear admin`)
-- **Página estática** (sin servidor, datos incrustados): `COLEGIOS_DB=... python -m app.build_static dist/colegios.html`
+- **Página estática** (sin servidor, datos incrustados): `COLEGIOS_DB=... python -m app.build_static dist/colegios.html` (con mapa base; `--sin-tiles` para omitirlo)
 
 ## API
 
