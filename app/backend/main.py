@@ -39,7 +39,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Colegios El Alto", version="1.0.0", description=__doc__, lifespan=lifespan)
+app = FastAPI(title="Colegios Handihand", version="1.0.0", description=__doc__, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 # Sin sesión: la API responde 401 y el dashboard redirige al login. Los recursos estáticos (js, css,

@@ -1,6 +1,6 @@
 """Normalización de registros crudos (CSV / JSON / GeoJSON / PDF) al modelo canónico.
 
-El sitio original (cuidados.elalto.gob.bo/educacion) expone columnas como
+El sitio original (módulo /educacion) expone columnas como
 "Nombre, Dist., Dependencia, Dirección, Nivel"; el SIE del Ministerio usa otros
 nombres. Aquí se mapean todos los alias conocidos a un único esquema.
 """

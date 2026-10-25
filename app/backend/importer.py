@@ -1,7 +1,7 @@
 """Importa datos cosechados (recon/out/**) o CSV/JSON/GeoJSON a la base.
 
 Uso:
-    python -m app.backend.importer recon/out/harvest/data/*.json --fuente cuidados.elalto.gob.bo
+    python -m app.backend.importer recon/out/harvest/data/*.json --fuente cuidados
     python -m app.backend.importer app/data/demo_unidades.csv --fuente DEMO
 """
 from __future__ import annotations

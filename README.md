@@ -1,6 +1,6 @@
-# Colegios El Alto: réplica mejorada del dashboard de educación
+# Colegios Handihand: dashboard de unidades educativas
 
-Ingeniería inversa del módulo educativo de [cuidados.elalto.gob.bo](https://cuidados.elalto.gob.bo/educacion/dashboard/) (unidades educativas **fiscales/públicas, de convenio y privadas**) y un sistema que lo replica y lo amplía.
+Dashboard de unidades educativas **fiscales/públicas, de convenio y privadas**: mapa, indicadores, gráficos, listado y exportaciones, con acceso por usuario.
 
 ```
 docs/      hallazgos, modelo de datos, mejoras, contrato del frontend y análisis de la BD real
@@ -32,7 +32,7 @@ Datos cosechados del sitio: sigue los pasos de [`recon/README.md`](recon/README.
 
 ```bash
 rm app/data/colegios.db
-python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados.elalto.gob.bo
+python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados
 ```
 
 ## Login

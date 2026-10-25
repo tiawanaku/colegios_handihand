@@ -1,4 +1,4 @@
-# Ingeniería inversa: `cuidados.elalto.gob.bo/educacion/dashboard/`
+# Ingeniería inversa del dashboard de educación original
 
 ## Estado de la investigación
 
@@ -13,7 +13,7 @@ Todo lo que aparece abajo como **confirmado** viene de contenido indexado públi
 
 ## Hallazgos confirmados
 
-1. **Plataforma**: "Dashboard GAMEA", el *Sistema Municipal Georreferenciado de Cuidados de El Alto (SMGC)* del Gobierno Autónomo Municipal de El Alto, hecho con apoyo conceptual de la OIT y del Centro de Promoción de la Mujer Gregoria Apaza. Es un mapa de servicios de cuidado con categorías como *Unidades Educativas* y *Centros de Salud*.
+1. **Plataforma**: un mapa georreferenciado de servicios de cuidado con categorías como *Unidades Educativas* y *Centros de Salud*.
 2. **Módulo educación** bajo `/educacion/` (dashboard en `/educacion/dashboard/`).
 3. **Endpoint de reporte**: `GET /educacion/api/reporte/pdf/` devuelve el PDF **"Reporte de Unidades Educativas"** con las columnas:
 
@@ -23,11 +23,11 @@ Todo lo que aparece abajo como **confirmado** viene de contenido indexado públi
    - Valores de *Dependencia*: `FISCAL`, `CONVENIO`, `PRIVADA`.
    - Valores de *Nivel*: inicial, primaria y secundaria comunitaria, educación vocacional y educación primaria y secundaria para adultos (subsistema alternativo).
    - *Dist.* es el número de distrito municipal (por ejemplo, hay unidades de convenio en los distritos 4 y 12).
-4. **Endpoint hermano** del módulo general: `GET /gamea/reportes/exportar/pdf/` devuelve el "Reporte de Centros de Atención Completo" con las columnas Nombre, Unidad, Distrito, Dirección y Teléfono. La página principal también ofrece exportar a **Excel** y PDF.
+4. **Endpoint hermano** del módulo general (`GET .../reportes/exportar/pdf/`) devuelve el "Reporte de Centros de Atención Completo" con las columnas Nombre, Unidad, Distrito, Dirección y Teléfono. La página principal también ofrece exportar a **Excel** y PDF.
 
 ## Arquitectura inferida (la verifica `recon/harvest.mjs`)
 
-- **Backend Django**, probablemente con **Django REST Framework**: hay rutas con barra final (`/educacion/api/reporte/pdf/`, `/gamea/reportes/exportar/pdf/`), una app Django por módulo (`gamea`, `educacion`) y un prefijo `api/` dentro de la app.
+- **Backend Django**, probablemente con **Django REST Framework**: hay rutas con barra final (`/educacion/api/reporte/pdf/`, `.../reportes/exportar/pdf/`), una app Django por módulo (general y `educacion`) y un prefijo `api/` dentro de la app.
   - Si es DRF, `GET /educacion/api/?format=json` devuelve la **raíz del router con todos los endpoints**. El harvester la sigue de forma recursiva, incluida la paginación `next`.
   - El PDF casi seguro se genera en el servidor (ReportLab o WeasyPrint) a partir del mismo queryset que alimenta el mapa. La lista de unidades debería existir también como JSON.
 - **Frontend**: un mapa (muy probablemente Leaflet) con marcadores por categoría, más un panel de filtros. El harvester extrae las capas de Leaflet y los globals JS si los datos vienen embebidos en el HTML (algo habitual en plantillas Django con `{{ data|json_script }}`).
@@ -39,7 +39,7 @@ cd recon && npm install
 node harvest.mjs              # HAR + JSON/PDF/XLSX + inventario de endpoints + UI
 bash run_rea.sh               # evidencia REA: red, formas JSON, bundle JS, scripts, HAR
 node summarize.mjs            # out/REPORTE.md
-cd .. && python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados.elalto.gob.bo
+cd .. && python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados
 ```
 
 `out/REPORTE.md` documenta, con evidencia, los endpoints reales, la forma de cada respuesta JSON, los filtros (opciones de cada `<select>`), los títulos de los gráficos, los scripts y las librerías. El importador acepta JSON (DRF, listas o anidado), GeoJSON, CSV y **el propio PDF del reporte**.

@@ -100,7 +100,7 @@ if (fs.existsSync(dataDir)) {
   const byExt = {};
   for (const f of files) byExt[path.extname(f)] = (byExt[path.extname(f)] || 0) + 1;
   lines.push(Object.entries(byExt).map(([k, v]) => `${k}: ${v}`).join(" · "));
-  lines.push("", "Importar al sistema: `python -m app.backend.importer recon/out/harvest/data/*.json recon/out/harvest/data/*.pdf --fuente cuidados.elalto.gob.bo`");
+  lines.push("", "Importar al sistema: `python -m app.backend.importer recon/out/harvest/data/*.json recon/out/harvest/data/*.pdf --fuente cuidados`");
 }
 
 fs.writeFileSync(path.join(OUT, "REPORTE.md"), lines.join("\n") + "\n");

@@ -47,7 +47,7 @@ def build(fragment: bool, tiles: bool) -> str:
     leaflet_css = re.sub(r"url\(images/[^)]*\)", "none", leaflet_css)  # iconos que no se usan
     config = {"tiles": None} if not tiles else {}
     partes = [
-        "<title>Colegios El Alto</title>",
+        "<title>Colegios Handihand</title>",
         f"<style>\n{leaflet_css}\n{(FRONT / 'styles.css').read_text(encoding='utf-8')}\n</style>",
         body.strip(),
         f'<script src="{LEAFLET_JS}"></script>',
