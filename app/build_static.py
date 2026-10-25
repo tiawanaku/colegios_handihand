@@ -29,8 +29,7 @@ CHART_JS = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"
 def filas() -> list[dict]:
     with Session(engine) as s:
         rows = s.exec(select(UnidadEducativa).order_by(UnidadEducativa.id)).all()
-    campos = [f for f in EXPORT_FIELDS if f != "fuente"] + ["fuente"]
-    return [{k: v for k, v in r.model_dump().items() if k in campos and v is not None} for r in rows]
+    return [{k: v for k, v in r.model_dump().items() if k in EXPORT_FIELDS and v is not None} for r in rows]
 
 
 def script_json(data) -> str:

@@ -58,7 +58,7 @@ const fmt = (n) => (n == null || n === "" ? "—" : Number(n).toLocaleString("es
 // Todo valor que venga de la BD pasa por esc() antes de tocar innerHTML (incluye tooltips de Leaflet).
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// ---------------------------------------------------------------- estado (fuente única, sincronizado con la URL)
+// ---------------------------------------------------------------- estado (único, sincronizado con la URL)
 const state = { q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
 
 function readUrl() {
@@ -154,11 +154,10 @@ async function loadCatalogos() {
   renderChips("subsistema", [...(c.subsistemas || [])].sort(porOrden(ORDEN.subsistema)));
   renderChips("nivel", [...c.niveles].sort(porOrden(ORDEN.nivel)));
   renderChips("turno", [...c.turnos].sort(porOrden(ORDEN.turno)));
-  // Fuentes sin matrícula (p. ej. la BD de cuidados): se ocultan KPI, columna y orden por estudiantes
+  // Datos sin matrícula (p. ej. la BD de cuidados): se ocultan KPI, columna y orden por estudiantes
   conMatricula = c.campos?.matricula !== false;
   document.body.classList.toggle("sin-matricula", !conMatricula);
   renderChips("distrito", c.distritos.map(String), (d) => `D-${d}`);
-  $("#fuente").textContent = c.fuentes?.length ? `Fuente: ${c.fuentes.join(", ")}` : "";
   $("#legend").innerHTML = c.dependencias
     .map((d) => `<span><i style="background:${color(d)}"></i>${esc(label(d))}</span>`).join("");
   return c;
@@ -301,7 +300,7 @@ async function showDetail(id) {
       ["RUE", r.codigo_rue], ["Dependencia", label(r.dependencia || "")], ["Convenio con", r.tipo_convenio],
       ["Subsistema", r.subsistema], ["Niveles", labels(r.niveles)], ["Turnos", labels(r.turnos)],
       ["Distrito", r.distrito_municipal], ["Zona", r.zona], ["Dirección", r.direccion], ["Teléfono", r.telefono],
-      ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes], ["Fuente", r.fuente],
+      ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes],
     ].filter(([, v]) => v != null && v !== "");
     $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>
       <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;

@@ -28,8 +28,9 @@ FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 EXPORT_FIELDS = [
     "id", "codigo_rue", "nombre", "dependencia", "tipo_convenio", "subsistema", "niveles", "turnos",
     "distrito_municipal", "distrito_educativo", "zona", "direccion", "telefono", "director", "area",
-    "lat", "lon", "estudiantes_total", "estudiantes_mujeres", "estudiantes_hombres", "docentes", "fuente",
+    "lat", "lon", "estudiantes_total", "estudiantes_mujeres", "estudiantes_hombres", "docentes",
 ]
+OCULTOS = {"fuente"}  # de uso interno (trazabilidad del importador): no sale por la API ni en exportaciones
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -177,7 +178,8 @@ def listar(
         base.order_by((sort_col.desc() if desc else sort_col.asc()).nulls_last(), UnidadEducativa.id)
         .offset((page - 1) * page_size).limit(page_size)
     ).all()
-    return {"count": total, "page": page, "page_size": page_size, "results": rows}
+    return {"count": total, "page": page, "page_size": page_size,
+            "results": [r.model_dump(exclude=OCULTOS) for r in rows]}
 
 
 @app.get("/api/unidades/{ue_id}", tags=["unidades"])
@@ -185,7 +187,7 @@ def detalle(ue_id: int, session: SessionDep):
     row = session.get(UnidadEducativa, ue_id)
     if row is None:
         raise HTTPException(404, "Unidad educativa no encontrada")
-    return row
+    return row.model_dump(exclude=OCULTOS)
 
 
 @app.get("/api/geojson", tags=["mapa"])
@@ -226,7 +228,7 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
         mujeres += r.estudiantes_mujeres or 0
         hombres += r.estudiantes_hombres or 0
         docentes += r.docentes or 0
-    # Sin matrícula en la fuente: null (el frontend oculta el KPI) en vez de un 0 engañoso
+    # Sin matrícula en los datos: null (el frontend oculta el KPI) en vez de un 0 engañoso
     hay_matricula = any(r.estudiantes_total is not None for r in rows)
     total_est = sum(est_dep.values()) if hay_matricula else None
     return {
@@ -254,10 +256,9 @@ def catalogos(session: SessionDep):
         turnos.update(filter(None, (t or "").split(",")))
         subsistemas.update(filter(None, (sub or "").split(",")))
     deps = session.exec(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct()).all()
-    fuentes = session.exec(select(U.fuente).distinct()).all()
     con_matricula = session.exec(select(U.id).where(col(U.estudiantes_total).is_not(None)).limit(1)).first() is not None
     return {"dependencias": sorted(deps), "distritos": sorted(distritos), "niveles": sorted(niveles),
-            "turnos": sorted(turnos), "subsistemas": sorted(subsistemas), "fuentes": [f for f in fuentes if f],
+            "turnos": sorted(turnos), "subsistemas": sorted(subsistemas),
             "campos": {"matricula": con_matricula}}
 
 

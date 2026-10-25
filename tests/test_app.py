@@ -251,3 +251,11 @@ def test_cli_crear_usuario(client, monkeypatch, capsys):
     assert auth.autenticar("nuevo", "otra-clave-1") is None
     auth.main(["listar"])
     assert "INACTIVO" in capsys.readouterr().out
+
+
+def test_fuente_no_se_expone(client):
+    # La fuente sólo se guarda para trazabilidad interna: no aparece en API, catálogos ni exportaciones
+    r = client.get("/api/unidades", params={"page_size": 1}).json()["results"][0]
+    assert "fuente" not in r and "fuente" not in client.get(f"/api/unidades/{r['id']}").json()
+    assert "fuentes" not in client.get("/api/catalogos").json()
+    assert "fuente" not in client.get("/api/export.csv").text.splitlines()[0]
