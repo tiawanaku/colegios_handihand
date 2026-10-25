@@ -12,11 +12,21 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const PORT = 8090 + Math.floor(Math.random() * 500);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PY = process.env.PYTHON || "python3";
-let server, browser, tmp;
+const USUARIO = "e2e", CLAVE = "clave-e2e-123";
+let server, browser, tmp, cookie;
 
 before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "colegios-e2e-"));
-  const env = { ...process.env, COLEGIOS_DB: `sqlite:///${path.join(tmp, "e2e.db")}` };
+  const env = { ...process.env, COLEGIOS_DB: `sqlite:///${path.join(tmp, "e2e.db")}`,
+    COLEGIOS_AUTH_DB: `sqlite:///${path.join(tmp, "usuarios.db")}`, COLEGIOS_AUTH: "1", COLEGIOS_SECRET: "e2e" };
+  execFileSync(PY, ["-c", `
+import sys
+from app.backend import auth
+from sqlmodel import Session
+auth.init_auth_db()
+with Session(auth.auth_engine) as s:
+    s.add(auth.Usuario(usuario=sys.argv[1], nombre="Usuaria E2E", clave_hash=auth.hash_clave(sys.argv[2])))
+    s.commit()`, USUARIO, CLAVE], { cwd: ROOT, env });
   execFileSync(PY, ["-m", "app.backend.importer", "app/data/demo_unidades.csv", "--fuente", "DEMO"], { cwd: ROOT, env });
   // Filas escritas directo en la BD (como llegarán desde una base propia, sin pasar por el normalizador)
   execFileSync(PY, ["-c", `
@@ -28,9 +38,14 @@ c.execute(f"insert into unidad_educativa ({cols}) values ('x2','U.E. ZZ INYECCIO
 c.commit()`, path.join(tmp, "e2e.db")]);
   server = spawn(PY, ["-m", "uvicorn", "app.backend.main:app", "--port", String(PORT)], { cwd: ROOT, env, stdio: "ignore" });
   for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(`${BASE}/api/catalogos`)).ok) break; } catch {}
+    try { if ((await fetch(`${BASE}/api/auth/sesion`)).ok) break; } catch {}
     await new Promise((r) => setTimeout(r, 200));
   }
+  const r = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuario: USUARIO, clave: CLAVE }),
+  });
+  assert.equal(r.status, 200);
+  cookie = r.headers.get("set-cookie").split(";")[0]; // colegios_sesion=...
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 });
 
@@ -40,8 +55,12 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+/** Página con sesión iniciada (la cookie del login hecho en before). */
 async function open(query = "") {
-  const page = await browser.newPage();
+  const ctx = await browser.newContext();
+  const [name, value] = cookie.split(/=(.*)/);
+  await ctx.addCookies([{ name, value, url: BASE }]);
+  const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && page.errors.push(m.text()));
@@ -51,6 +70,7 @@ async function open(query = "") {
   return page;
 }
 
+const api = (p) => fetch(`${BASE}/api/${p}`, { headers: { cookie } });
 const settle = (page) => page.waitForFunction(() => document.querySelector(".content").getAttribute("aria-busy") === "false");
 const kpiTotal = (page) => page.locator(".kpi b").first().innerText();
 const badges = (page) => page.locator("#tabla tbody .badge").allInnerTexts();
@@ -62,7 +82,7 @@ test("carga sin errores y muestra todas las unidades", async () => {
   assert.ok(await page.locator("#map-vacio").isHidden(), "el aviso de mapa vacío no debe verse con datos");
   assert.ok(await page.locator("#estado").isHidden());
   assert.deepEqual(page.errors, []);
-  await page.close();
+  await page.context().close();
 });
 
 test("datos de la BD nunca se interpretan como HTML (tooltip, leyenda, tabla, detalle)", async () => {
@@ -76,14 +96,14 @@ test("datos de la BD nunca se interpretan como HTML (tooltip, leyenda, tabla, de
   assert.equal(await page.evaluate(() => window.__xss), undefined);
   assert.match(await page.locator("#legend").innerText(), /<img src=x/);
   assert.match(await page.locator("#detalle-titulo").innerText(), /<img src=x/);
-  await page.close();
+  await page.context().close();
 });
 
 test("filtros sincronizan URL, KPIs y enlaces de exportación", async () => {
   const page = await open();
   await page.check('#f-dependencia input[value="CONVENIO"]');
   await settle(page);
-  const stats = await (await fetch(`${BASE}/api/estadisticas?dependencia=CONVENIO`)).json();
+  const stats = await (await api("estadisticas?dependencia=CONVENIO")).json();
   assert.equal(await kpiTotal(page), String(stats.total_unidades));
   assert.match(page.url(), /dependencia=CONVENIO/);
   assert.match(await page.locator('[data-export="xlsx"]').getAttribute("href"), /export\.xlsx\?dependencia=CONVENIO/);
@@ -92,7 +112,7 @@ test("filtros sincronizan URL, KPIs y enlaces de exportación", async () => {
   await settle(page);
   assert.equal(await kpiTotal(page), "182");
   assert.ok(!page.url().includes("?"));
-  await page.close();
+  await page.context().close();
 });
 
 test("una URL compartida restaura filtros, página y orden", async () => {
@@ -102,7 +122,7 @@ test("una URL compartida restaura filtros, página y orden", async () => {
   assert.equal(await page.locator('th[data-orden="estudiantes_total"]').getAttribute("aria-sort"), "descending");
   const nums = (await page.locator("#tabla tbody td.num").allInnerTexts()).map((t) => Number(t.replace(/\./g, "")));
   assert.deepEqual(nums, [...nums].sort((a, b) => b - a));
-  await page.close();
+  await page.context().close();
 });
 
 test("una respuesta lenta y vieja no pisa al filtro más reciente", async () => {
@@ -117,7 +137,7 @@ test("una respuesta lenta y vieja no pisa al filtro más reciente", async () => 
   await page.waitForTimeout(2000);
   await settle(page);
   assert.ok((await badges(page)).every((b) => b === "Privada"), "la tabla debe mostrar sólo privadas");
-  await page.close();
+  await page.context().close();
 });
 
 test("teclado: Enter en una fila abre el detalle; ordenar desde el encabezado", async () => {
@@ -131,7 +151,7 @@ test("teclado: Enter en una fila abre el detalle; ordenar desde el encabezado", 
   await settle(page);
   assert.equal(await page.locator('th[data-orden="distrito_municipal"]').getAttribute("aria-sort"), "ascending");
   assert.match(page.url(), /orden=distrito_municipal/);
-  await page.close();
+  await page.context().close();
 });
 
 test("sin resultados y errores del servidor se muestran al usuario", async () => {
@@ -142,5 +162,31 @@ test("sin resultados y errores del servidor se muestran al usuario", async () =>
   await page.fill("#q", "");
   await page.locator("#estado").waitFor({ state: "visible" });
   assert.match(await page.locator("#estado").innerText(), /HTTP 500/);
-  await page.close();
+  await page.context().close();
+});
+
+test("login: sin sesión redirige, credenciales malas avisan, las buenas entran y Salir cierra", async () => {
+  const page = await browser.newPage();
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto(`${BASE}/?dependencia=FISCAL`);
+  assert.match(page.url(), /\/login\.html$/);
+  assert.equal((await fetch(`${BASE}/api/unidades`)).status, 401);
+  await page.fill("#usuario", USUARIO);
+  await page.fill("#clave", "incorrecta");
+  await page.click("button[type=submit]");
+  await page.locator("#login-error").waitFor({ state: "visible" });
+  assert.match(await page.locator("#login-error").innerText(), /incorrectos/);
+  assert.equal(await page.inputValue("#clave"), "");
+  await page.fill("#clave", CLAVE);
+  await page.press("#clave", "Enter");
+  await page.waitForURL(`${BASE}/`);
+  await settle(page);
+  assert.equal(await kpiTotal(page), "182");
+  await page.locator(".sesion").waitFor({ state: "visible" });
+  assert.equal(await page.locator("#sesion-nombre").innerText(), "Usuaria E2E");
+  await page.click("#salir");
+  await page.waitForURL(/\/login\.html$/);
+  await page.goto(`${BASE}/`);
+  assert.match(page.url(), /\/login\.html$/, "tras salir, el dashboard vuelve a pedir login");
+  await page.context().close();
 });

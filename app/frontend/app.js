@@ -106,6 +106,7 @@ async function api(channel, path, params) {
     if (CONFIG.staticApi) return CONFIG.staticApi(path, params);
     const qs = params ? `?${params}` : "";
     const r = await fetch(`${CONFIG.apiBase}/${path}${qs}`, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+    if (r.status === 401) irAlLogin();
     if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
     return await r.json();
   } finally {
@@ -311,6 +312,21 @@ async function showDetail(id) {
   }
 }
 
+// ---------------------------------------------------------------- sesión (no aplica al modo estático)
+const irAlLogin = () => location.replace("login.html");
+
+async function initSesion() {
+  if (CONFIG.staticApi) return;
+  const s = await fetch(`${CONFIG.apiBase}/auth/sesion`).then((r) => r.json()).catch(() => null);
+  if (!s?.usuario) return; // login desactivado (o sesión vencida: la primera llamada a la API redirige)
+  $("#sesion-nombre").textContent = s.nombre || s.usuario;
+  $(".sesion").hidden = false;
+  $("#salir").addEventListener("click", async () => {
+    await fetch(`${CONFIG.apiBase}/auth/logout`, { method: "POST" }).catch(() => {});
+    irAlLogin();
+  });
+}
+
 // ---------------------------------------------------------------- orquestación
 function updateExports() {
   const nav = $(".exports"); // exportar necesita el backend; la versión estática no trae estos enlaces
@@ -380,6 +396,7 @@ async function init() {
   // En pantallas chicas los filtros empiezan plegados, para ver primero los indicadores
   if (matchMedia("(max-width: 900px)").matches) $("#panel-filtros").open = false;
   bindEvents();
+  initSesion();
   try {
     await loadCatalogos();
   } catch (e) {

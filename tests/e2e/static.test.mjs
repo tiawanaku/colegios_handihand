@@ -17,7 +17,7 @@ let server, browser, page, tmp, html;
 
 before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "colegios-static-"));
-  const env = { ...process.env };
+  const env = { ...process.env, COLEGIOS_AUTH: "0" }; // aquí se compara la API, no el login
   if (!process.env.COLEGIOS_DB) {
     env.COLEGIOS_DB = `sqlite:///${path.join(tmp, "s.db")}`;
     execFileSync(PY, ["-m", "app.backend.importer", "app/data/demo_unidades.csv", "--fuente", "DEMO"], { cwd: ROOT, env });

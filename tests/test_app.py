@@ -13,18 +13,37 @@ sys.path.insert(0, str(ROOT))
 def client(tmp_path_factory):
     # la BD se fija antes del primer import de app.backend.db
     os.environ.setdefault("COLEGIOS_DB", f"sqlite:///{tmp_path_factory.getbasetemp() / 'test.db'}")
+    os.environ.setdefault("COLEGIOS_AUTH_DB", f"sqlite:///{tmp_path_factory.getbasetemp() / 'usuarios.db'}")
     from fastapi.testclient import TestClient
     from sqlmodel import SQLModel
 
-    from app.backend import importer
+    from app.backend import auth, importer
     from app.backend.db import engine
     from app.backend.main import app
 
     SQLModel.metadata.drop_all(engine)
     importer.upsert(importer.read_file(ROOT / "app/data/demo_unidades.csv"), "DEMO")
+    auth.AuthModel.metadata.drop_all(auth.auth_engine)
+    auth.init_auth_db()
+    auth._fallos.clear()
+    nuevo_usuario("analista", "clave-segura-1", nombre="Ana Lista")
     with TestClient(app) as c:
+        assert c.post("/api/auth/login", json={"usuario": "analista", "clave": "clave-segura-1"}).status_code == 200
         c.importer = importer
         yield c
+
+
+def nuevo_usuario(usuario, clave, **kw):
+    from sqlmodel import Session
+
+    from app.backend import auth
+
+    with Session(auth.auth_engine) as s:
+        u = auth.Usuario(usuario=usuario, clave_hash=auth.hash_clave(clave), **kw)
+        s.add(u)
+        s.commit()
+        s.refresh(u)
+        return u
 
 
 def test_normalize_aliases():
@@ -150,3 +169,85 @@ def test_sin_matricula_devuelve_null(client):
     s = client.get("/api/estadisticas").json()
     assert s["estudiantes"]["total"] is None and s["ratio_estudiante_docente"] is None
     assert client.get("/api/catalogos").json()["campos"] == {"matricula": False}
+
+
+def test_hash_de_clave():
+    from app.backend.auth import hash_clave, verificar_clave
+
+    h = hash_clave("secreta123")
+    assert h.startswith("scrypt$") and "secreta123" not in h
+    assert verificar_clave("secreta123", h) and not verificar_clave("secreta124", h)
+    assert hash_clave("secreta123") != h                       # sal distinta cada vez
+    assert not verificar_clave("x", "basura") and not verificar_clave("x", "md5$1$2$3$4$5")
+
+
+def test_sin_sesion_api_401_y_dashboard_redirige(client):
+    client.post("/api/auth/logout")
+    assert client.get("/api/unidades").status_code == 401
+    assert client.get("/api/export.csv").status_code == 401
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login.html"
+    assert client.get("/login.html").status_code == 200        # el login y sus recursos son públicos
+    assert client.get("/styles.css").status_code == 200
+    assert client.get("/api/auth/sesion").json() == {"requerida": True, "usuario": None, "nombre": None}
+
+
+def test_login_y_logout(client):
+    s = client.get("/api/auth/sesion").json()
+    assert (s["usuario"], s["nombre"]) == ("analista", "Ana Lista")
+    assert client.get("/", follow_redirects=False).status_code == 200
+    client.post("/api/auth/logout")
+    assert client.get("/api/catalogos").status_code == 401
+    r = client.post("/api/auth/login", json={"usuario": "  ANALISTA ", "clave": "clave-segura-1"})
+    assert r.status_code == 200
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert client.get("/api/catalogos").status_code == 200
+
+
+def test_credenciales_invalidas_y_bloqueo(client):
+    from app.backend import auth
+
+    client.post("/api/auth/logout")
+    for datos in [{"usuario": "analista", "clave": "mala"}, {"usuario": "nadie", "clave": "x"}]:
+        r = client.post("/api/auth/login", json=datos)
+        assert r.status_code == 401 and r.json()["detail"] == "Usuario o contraseña incorrectos"
+    for _ in range(auth.MAX_FALLOS - 2):
+        client.post("/api/auth/login", json={"usuario": "analista", "clave": "mala"})
+    # bloqueado aunque ahora la clave sea correcta
+    assert client.post("/api/auth/login", json={"usuario": "analista", "clave": "clave-segura-1"}).status_code == 429
+    auth._fallos.clear()
+
+
+def test_token_alterado_vencido_o_usuario_inactivo(client):
+    from sqlmodel import Session
+
+    from app.backend import auth
+
+    u = nuevo_usuario("temporal", "clave-temporal")
+    token = auth.crear_token(u)
+    assert auth.leer_token(token).usuario == "temporal"
+    uid, exp, firma = token.split(".")
+    assert auth.leer_token(f"{int(uid) + 1}.{exp}.{firma}") is None   # otro id con la misma firma
+    assert auth.leer_token(f"{uid}.{int(exp) + 999}.{firma}") is None        # extender la expiración
+    assert auth.leer_token(auth.crear_token(u, ahora=0)) is None              # vencido
+    assert auth.leer_token("basura") is None and auth.leer_token(None) is None
+    with Session(auth.auth_engine) as s:
+        s.get(auth.Usuario, u.id).activo = False
+        s.commit()
+    assert auth.leer_token(token) is None
+    assert auth.autenticar("temporal", "clave-temporal") is None
+
+
+def test_cli_crear_usuario(client, monkeypatch, capsys):
+    from app.backend import auth
+
+    monkeypatch.setattr(auth.getpass, "getpass", lambda _prompt: "otra-clave-1")
+    auth.main(["crear", "Nuevo", "--nombre", "Nuevo Usuario"])
+    assert auth.autenticar("nuevo", "otra-clave-1").nombre == "Nuevo Usuario"
+    with pytest.raises(SystemExit):
+        auth.main(["crear", "nuevo"])
+    auth.main(["desactivar", "nuevo"])
+    assert auth.autenticar("nuevo", "otra-clave-1") is None
+    auth.main(["listar"])
+    assert "INACTIVO" in capsys.readouterr().out

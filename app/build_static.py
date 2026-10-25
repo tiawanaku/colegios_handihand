@@ -43,6 +43,7 @@ def build(fragment: bool, tiles: bool) -> str:
     body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
     body = re.sub(r"\s*<script src=[^>]*></script>", "", body)  # los scripts se insertan abajo
     body = re.sub(r"\s*<nav class=\"exports\">.*?</nav>", "", body, flags=re.S)  # exportar necesita el backend
+    body = re.sub(r"\s*<div class=\"sesion\".*?</div>", "", body, flags=re.S)  # sin backend no hay login
     leaflet_css = (FRONT / "vendor/leaflet/leaflet.css").read_text(encoding="utf-8")
     leaflet_css = re.sub(r"url\(images/[^)]*\)", "none", leaflet_css)  # iconos que no se usan
     config = {"tiles": None} if not tiles else {}

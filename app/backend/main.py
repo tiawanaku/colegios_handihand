@@ -11,13 +11,15 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import literal
+from pydantic import BaseModel
 from sqlmodel import Session, col, func, or_, select
 
+from . import auth
 from .db import engine, init_db
 from .models import UnidadEducativa
 from .pdf_report import build_pdf
@@ -32,11 +34,64 @@ EXPORT_FIELDS = [
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    auth.init_auth_db()
     yield
 
 
 app = FastAPI(title="Colegios El Alto", version="1.0.0", description=__doc__, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+
+# Sin sesión: la API responde 401 y el dashboard redirige al login. Los recursos estáticos (js, css,
+# vendor/) son públicos: los datos sólo salen por /api.
+PUBLICAS = {"/api/auth/login", "/api/auth/sesion"}
+PAGINAS = {"/", "/index.html"}
+
+
+@app.middleware("http")
+async def exigir_sesion(request: Request, call_next):
+    path = request.url.path
+    if auth.AUTH_ENABLED and path not in PUBLICAS and (path.startswith("/api/") or path in PAGINAS):
+        request.state.usuario = auth.leer_token(request.cookies.get(auth.COOKIE))
+        if request.state.usuario is None:
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Sesión requerida"}, status_code=401)
+            return RedirectResponse("/login.html", status_code=303)
+    return await call_next(request)
+
+
+class Credenciales(BaseModel):
+    usuario: str
+    clave: str
+
+
+@app.post("/api/auth/login", tags=["sesión"])
+def login(datos: Credenciales, request: Request):
+    ip = request.client.host if request.client else "?"
+    if auth.bloqueado(ip):
+        raise HTTPException(429, "Demasiados intentos fallidos. Espera unos minutos.")
+    u = auth.autenticar(datos.usuario, datos.clave)
+    if u is None:
+        auth.registrar_fallo(ip)
+        raise HTTPException(401, "Usuario o contraseña incorrectos")
+    auth.limpiar_fallos(ip)
+    resp = JSONResponse({"usuario": u.usuario, "nombre": u.nombre})
+    resp.set_cookie(auth.COOKIE, auth.crear_token(u), max_age=auth.DURACION, httponly=True,
+                    samesite="lax", secure=request.url.scheme == "https", path="/")
+    return resp
+
+
+@app.post("/api/auth/logout", tags=["sesión"])
+def logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.COOKIE, path="/")
+    return resp
+
+
+@app.get("/api/auth/sesion", tags=["sesión"])
+def sesion(request: Request):
+    """Usuario de la sesión actual (null si no hay). `requerida` es false si el login está desactivado."""
+    u = auth.leer_token(request.cookies.get(auth.COOKIE)) if auth.AUTH_ENABLED else None
+    return {"requerida": auth.AUTH_ENABLED, "usuario": u and u.usuario, "nombre": u and u.nombre}
 
 
 def get_session():
