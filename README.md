@@ -3,14 +3,25 @@
 Dashboard de unidades educativas **fiscales/públicas, de convenio y privadas**: mapa, indicadores, gráficos, listado y exportaciones, con acceso por usuario.
 
 ```
-docs/      hallazgos, modelo de datos, mejoras, contrato del frontend y análisis de la BD real
-db/        vista SQL sobre la BD de cuidados (Django/PostgreSQL)
-recon/     kit REA + Playwright para extraer endpoints, UI y datos del sitio original
-app/       sistema mejorado: API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
+docs/      modelo de datos, mejoras, contrato del frontend y análisis de la BD real
+db/        vista SQL sobre la BD de cuidados (Django/PostgreSQL): de aquí salen los datos
+app/       API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
 tests/     pruebas: API (pytest) y frontend end-to-end (npm run test:e2e)
 ```
 
 ## Arranque rápido
+
+**Con la BD de cuidados (PostgreSQL)**, que es de donde salen los datos reales: crea la vista y apunta el backend a la BD
+(detalles y calidad de datos en [`docs/05-bd-cuidados.md`](docs/05-bd-cuidados.md)):
+
+```bash
+pip install -r requirements.txt
+psql -d cuidados -f db/vista_unidad_educativa.sql
+python -m app.backend.auth crear admin --nombre "Administrador"   # pide la contraseña
+COLEGIOS_DB="postgresql+psycopg://usuario:clave@host/cuidados" uvicorn app.backend.main:app
+```
+
+**Sin BD (desarrollo)**, con datos ficticios:
 
 ```bash
 pip install -r requirements.txt
@@ -19,20 +30,6 @@ python -m app.backend.importer app/data/demo_unidades.csv --fuente DEMO
 python -m app.backend.auth crear admin --nombre "Administrador"   # pide la contraseña
 uvicorn app.backend.main:app --reload                          # http://localhost:8000  ·  API: /docs
 pytest -q
-```
-
-**BD de cuidados (PostgreSQL)**: crea la vista y apunta el backend a la BD (detalles y calidad de datos en [`docs/05-bd-cuidados.md`](docs/05-bd-cuidados.md)):
-
-```bash
-psql -d cuidados -f db/vista_unidad_educativa.sql
-COLEGIOS_DB="postgresql+psycopg://usuario:clave@host/cuidados" uvicorn app.backend.main:app
-```
-
-Datos cosechados del sitio: sigue los pasos de [`recon/README.md`](recon/README.md) y luego:
-
-```bash
-rm app/data/colegios.db
-python -m app.backend.importer recon/out/harvest/data/* --fuente cuidados
 ```
 
 ## Login

@@ -1,8 +1,7 @@
-"""Normalización de registros crudos (CSV / JSON / GeoJSON / PDF) al modelo canónico.
+"""Normalización de registros crudos (CSV / JSON / GeoJSON) al modelo canónico.
 
-El sitio original (módulo /educacion) expone columnas como
-"Nombre, Dist., Dependencia, Dirección, Nivel"; el SIE del Ministerio usa otros
-nombres. Aquí se mapean todos los alias conocidos a un único esquema.
+Los archivos usan nombres de columna distintos ("Nombre, Dist., Dependencia, Dirección, Nivel";
+el SIE del Ministerio usa otros). Aquí se mapean todos los alias conocidos a un único esquema.
 """
 from __future__ import annotations
 

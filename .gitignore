@@ -4,7 +4,6 @@ __pycache__/
 node_modules/
 app/data/colegios.db
 app/data/usuarios.db
-recon/out/
 
 # volcados de BD (contienen usuarios y sesiones)
 *.dump

@@ -100,6 +100,19 @@ def test_geojson_and_bbox(client):
     assert 0 < len(small["features"]) < 180
 
 
+def filas_pdf(path):
+    """Filas de la tabla del PDF exportado (la cabecera, que se repite en cada página, se descarta)."""
+    import pdfplumber
+
+    filas = []
+    with pdfplumber.open(str(path)) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                header = [(c or "").strip().lower() for c in table[0]]
+                filas += [dict(zip(header, row)) for row in table[1:] if row[0]]
+    return filas
+
+
 def test_exports_and_pdf_roundtrip(client, tmp_path):
     assert client.get("/api/export.csv").text.count("\n") == 181
     assert client.get("/api/export.xlsx").content[:2] == b"PK"
@@ -107,9 +120,7 @@ def test_exports_and_pdf_roundtrip(client, tmp_path):
     assert pdf.content[:4] == b"%PDF"
     path = tmp_path / "reporte.pdf"
     path.write_bytes(pdf.content)
-    from app.backend.pdf_report import parse_pdf
-
-    rows = list(parse_pdf(path))
+    rows = filas_pdf(path)
     expected = client.get("/api/estadisticas", params={"dependencia": "CONVENIO"}).json()["total_unidades"]
     assert len(rows) == expected
     assert {r["dependencia"] for r in rows} == {"CONVENIO"}
