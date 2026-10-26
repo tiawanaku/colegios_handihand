@@ -10,8 +10,12 @@ const CONFIG = {
   // El mapa encuadra sólo los puntos dentro de esta zona (los que caen fuera se dibujan igual):
   // así un par de coordenadas erróneas no alejan el zoom de toda la ciudad.
   areaBounds: [[-16.65, -68.35], [-16.40, -68.05]],
-  tiles: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  tilesAttribution: "© OpenStreetMap",
+  // Mapas base en orden de preferencia: si uno no carga (bloqueado, sin Referer, sin red) se pasa al
+  // siguiente, y sin ninguno se dibujan rótulos de distrito. `tiles: null` desactiva el mapa base.
+  tiles: [
+    { url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap" },
+    { url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", attribution: "© OpenStreetMap © CARTO" },
+  ],
   ...(window.COLEGIOS_CONFIG || {}),
 };
 
@@ -58,7 +62,7 @@ const fmt = (n) => (n == null || n === "" ? "—" : Number(n).toLocaleString("es
 // Todo valor que venga de la BD pasa por esc() antes de tocar innerHTML (incluye tooltips de Leaflet).
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// ---------------------------------------------------------------- estado (fuente única, sincronizado con la URL)
+// ---------------------------------------------------------------- estado (único, sincronizado con la URL)
 const state = { q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
 
 function readUrl() {
@@ -106,6 +110,7 @@ async function api(channel, path, params) {
     if (CONFIG.staticApi) return CONFIG.staticApi(path, params);
     const qs = params ? `?${params}` : "";
     const r = await fetch(`${CONFIG.apiBase}/${path}${qs}`, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+    if (r.status === 401) irAlLogin();
     if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
     return await r.json();
   } finally {
@@ -153,11 +158,10 @@ async function loadCatalogos() {
   renderChips("subsistema", [...(c.subsistemas || [])].sort(porOrden(ORDEN.subsistema)));
   renderChips("nivel", [...c.niveles].sort(porOrden(ORDEN.nivel)));
   renderChips("turno", [...c.turnos].sort(porOrden(ORDEN.turno)));
-  // Fuentes sin matrícula (p. ej. la BD de cuidados): se ocultan KPI, columna y orden por estudiantes
+  // Datos sin matrícula (p. ej. la BD de cuidados): se ocultan KPI, columna y orden por estudiantes
   conMatricula = c.campos?.matricula !== false;
   document.body.classList.toggle("sin-matricula", !conMatricula);
   renderChips("distrito", c.distritos.map(String), (d) => `D-${d}`);
-  $("#fuente").textContent = c.fuentes?.length ? `Fuente: ${c.fuentes.join(", ")}` : "";
   $("#legend").innerHTML = c.dependencias
     .map((d) => `<span><i style="background:${color(d)}"></i>${esc(label(d))}</span>`).join("");
   return c;
@@ -210,17 +214,55 @@ async function loadStats() {
 }
 
 // ---------------------------------------------------------------- mapa
-let map, layer;
+let map, layer, ultimoGeojson, sinMapaBase = false;
+
+/** Lista de mapas base de la configuración (acepta también una URL suelta, como en versiones anteriores). */
+function proveedores() {
+  const t = CONFIG.tiles;
+  if (!t) return [];
+  return (Array.isArray(t) ? t : [t]).map((p) => (typeof p === "string" ? { url: p, attribution: CONFIG.tilesAttribution } : p));
+}
+
+/** Prueba los mapas base en orden. Un proveedor se descarta si sus primeros tiles fallan sin que cargue ninguno. */
+function addBaseLayer(lista) {
+  if (!lista.length) {
+    sinMapaBase = true;
+    $("#map").classList.add("sin-mapa-base");
+    if (ultimoGeojson) drawDistritos(ultimoGeojson);
+    return;
+  }
+  const [p, ...resto] = lista;
+  // referrerPolicy: OpenStreetMap rechaza (403) los tiles pedidos sin Referer, p. ej. tras un
+  // proxy con "Referrer-Policy: no-referrer"; así se envía al menos el origen del sitio.
+  const tl = L.tileLayer(p.url, { maxZoom: 19, attribution: p.attribution, referrerPolicy: "strict-origin-when-cross-origin" });
+  let cargados = 0, fallos = 0;
+  tl.on("tileload", () => cargados++);
+  tl.on("tileerror", () => {
+    if (++fallos < 4 || cargados > 0 || !map.hasLayer(tl)) return;
+    tl.remove();
+    console.warn(`Mapa base no disponible: ${p.url}`);
+    addBaseLayer(resto);
+  });
+  tl.addTo(map);
+}
 
 async function loadMap() {
+  if (typeof L === "undefined") { // Leaflet no cargó (CDN bloqueado): el resto del dashboard sigue
+    $("#map-vacio").textContent = "No se pudo cargar el mapa (Leaflet).";
+    $("#map-vacio").hidden = false;
+    return;
+  }
   if (!map) {
     // preferCanvas: miles de marcadores sin crear un nodo SVG por cada uno
     map = L.map("map", { preferCanvas: true }).setView(CONFIG.mapCenter, CONFIG.mapZoom);
-    if (CONFIG.tiles) L.tileLayer(CONFIG.tiles, { maxZoom: 19, attribution: CONFIG.tilesAttribution }).addTo(map);
+    addBaseLayer(proveedores());
+    // Si el contenedor cambia de tamaño (carga de estilos, rotación, panel de filtros) Leaflet debe
+    // recalcularlo; si no, quedan franjas grises sin tiles.
+    new ResizeObserver(() => map.invalidateSize()).observe($("#map"));
   }
-  const gj = await api("map", "geojson", filterParams());
+  const gj = (ultimoGeojson = await api("map", "geojson", filterParams()));
   layer?.remove();
-  if (!CONFIG.tiles) drawDistritos(gj);
+  if (sinMapaBase) drawDistritos(gj);
   layer = L.geoJSON(gj, {
     pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 6, weight: 1, color: "#fff", fillOpacity: 0.9, fillColor: color(f.properties.dependencia) }),
     onEachFeature: (f, l) => l.bindTooltip(esc(f.properties.nombre)).on("click", () => showDetail(f.properties.id)),
@@ -300,7 +342,7 @@ async function showDetail(id) {
       ["RUE", r.codigo_rue], ["Dependencia", label(r.dependencia || "")], ["Convenio con", r.tipo_convenio],
       ["Subsistema", r.subsistema], ["Niveles", labels(r.niveles)], ["Turnos", labels(r.turnos)],
       ["Distrito", r.distrito_municipal], ["Zona", r.zona], ["Dirección", r.direccion], ["Teléfono", r.telefono],
-      ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes], ["Fuente", r.fuente],
+      ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes],
     ].filter(([, v]) => v != null && v !== "");
     $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>
       <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
@@ -309,6 +351,21 @@ async function showDetail(id) {
   } catch (e) {
     showError(e);
   }
+}
+
+// ---------------------------------------------------------------- sesión (no aplica al modo estático)
+const irAlLogin = () => location.replace("login.html");
+
+async function initSesion() {
+  if (CONFIG.staticApi) return;
+  const s = await fetch(`${CONFIG.apiBase}/auth/sesion`).then((r) => r.json()).catch(() => null);
+  if (!s?.usuario) return; // login desactivado (o sesión vencida: la primera llamada a la API redirige)
+  $("#sesion-nombre").textContent = s.nombre || s.usuario;
+  $(".sesion").hidden = false;
+  $("#salir").addEventListener("click", async () => {
+    await fetch(`${CONFIG.apiBase}/auth/logout`, { method: "POST" }).catch(() => {});
+    irAlLogin();
+  });
 }
 
 // ---------------------------------------------------------------- orquestación
@@ -380,6 +437,7 @@ async function init() {
   // En pantallas chicas los filtros empiezan plegados, para ver primero los indicadores
   if (matchMedia("(max-width: 900px)").matches) $("#panel-filtros").open = false;
   bindEvents();
+  initSesion();
   try {
     await loadCatalogos();
   } catch (e) {

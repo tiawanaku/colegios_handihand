@@ -13,18 +13,37 @@ sys.path.insert(0, str(ROOT))
 def client(tmp_path_factory):
     # la BD se fija antes del primer import de app.backend.db
     os.environ.setdefault("COLEGIOS_DB", f"sqlite:///{tmp_path_factory.getbasetemp() / 'test.db'}")
+    os.environ.setdefault("COLEGIOS_AUTH_DB", f"sqlite:///{tmp_path_factory.getbasetemp() / 'usuarios.db'}")
     from fastapi.testclient import TestClient
     from sqlmodel import SQLModel
 
-    from app.backend import importer
+    from app.backend import auth, importer
     from app.backend.db import engine
     from app.backend.main import app
 
     SQLModel.metadata.drop_all(engine)
     importer.upsert(importer.read_file(ROOT / "app/data/demo_unidades.csv"), "DEMO")
+    auth.AuthModel.metadata.drop_all(auth.auth_engine)
+    auth.init_auth_db()
+    auth._fallos.clear()
+    nuevo_usuario("analista", "clave-segura-1", nombre="Ana Lista")
     with TestClient(app) as c:
+        assert c.post("/api/auth/login", json={"usuario": "analista", "clave": "clave-segura-1"}).status_code == 200
         c.importer = importer
         yield c
+
+
+def nuevo_usuario(usuario, clave, **kw):
+    from sqlmodel import Session
+
+    from app.backend import auth
+
+    with Session(auth.auth_engine) as s:
+        u = auth.Usuario(usuario=usuario, clave_hash=auth.hash_clave(clave), **kw)
+        s.add(u)
+        s.commit()
+        s.refresh(u)
+        return u
 
 
 def test_normalize_aliases():
@@ -81,6 +100,19 @@ def test_geojson_and_bbox(client):
     assert 0 < len(small["features"]) < 180
 
 
+def filas_pdf(path):
+    """Filas de la tabla del PDF exportado (la cabecera, que se repite en cada página, se descarta)."""
+    import pdfplumber
+
+    filas = []
+    with pdfplumber.open(str(path)) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                header = [(c or "").strip().lower() for c in table[0]]
+                filas += [dict(zip(header, row)) for row in table[1:] if row[0]]
+    return filas
+
+
 def test_exports_and_pdf_roundtrip(client, tmp_path):
     assert client.get("/api/export.csv").text.count("\n") == 181
     assert client.get("/api/export.xlsx").content[:2] == b"PK"
@@ -88,9 +120,7 @@ def test_exports_and_pdf_roundtrip(client, tmp_path):
     assert pdf.content[:4] == b"%PDF"
     path = tmp_path / "reporte.pdf"
     path.write_bytes(pdf.content)
-    from app.backend.pdf_report import parse_pdf
-
-    rows = list(parse_pdf(path))
+    rows = filas_pdf(path)
     expected = client.get("/api/estadisticas", params={"dependencia": "CONVENIO"}).json()["total_unidades"]
     assert len(rows) == expected
     assert {r["dependencia"] for r in rows} == {"CONVENIO"}
@@ -150,3 +180,93 @@ def test_sin_matricula_devuelve_null(client):
     s = client.get("/api/estadisticas").json()
     assert s["estudiantes"]["total"] is None and s["ratio_estudiante_docente"] is None
     assert client.get("/api/catalogos").json()["campos"] == {"matricula": False}
+
+
+def test_hash_de_clave():
+    from app.backend.auth import hash_clave, verificar_clave
+
+    h = hash_clave("secreta123")
+    assert h.startswith("scrypt$") and "secreta123" not in h
+    assert verificar_clave("secreta123", h) and not verificar_clave("secreta124", h)
+    assert hash_clave("secreta123") != h                       # sal distinta cada vez
+    assert not verificar_clave("x", "basura") and not verificar_clave("x", "md5$1$2$3$4$5")
+
+
+def test_sin_sesion_api_401_y_dashboard_redirige(client):
+    client.post("/api/auth/logout")
+    assert client.get("/api/unidades").status_code == 401
+    assert client.get("/api/export.csv").status_code == 401
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login.html"
+    assert client.get("/login.html").status_code == 200        # el login y sus recursos son públicos
+    assert client.get("/styles.css").status_code == 200
+    assert client.get("/api/auth/sesion").json() == {"requerida": True, "usuario": None, "nombre": None}
+
+
+def test_login_y_logout(client):
+    s = client.get("/api/auth/sesion").json()
+    assert (s["usuario"], s["nombre"]) == ("analista", "Ana Lista")
+    assert client.get("/", follow_redirects=False).status_code == 200
+    client.post("/api/auth/logout")
+    assert client.get("/api/catalogos").status_code == 401
+    r = client.post("/api/auth/login", json={"usuario": "  ANALISTA ", "clave": "clave-segura-1"})
+    assert r.status_code == 200
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert client.get("/api/catalogos").status_code == 200
+
+
+def test_credenciales_invalidas_y_bloqueo(client):
+    from app.backend import auth
+
+    client.post("/api/auth/logout")
+    for datos in [{"usuario": "analista", "clave": "mala"}, {"usuario": "nadie", "clave": "x"}]:
+        r = client.post("/api/auth/login", json=datos)
+        assert r.status_code == 401 and r.json()["detail"] == "Usuario o contraseña incorrectos"
+    for _ in range(auth.MAX_FALLOS - 2):
+        client.post("/api/auth/login", json={"usuario": "analista", "clave": "mala"})
+    # bloqueado aunque ahora la clave sea correcta
+    assert client.post("/api/auth/login", json={"usuario": "analista", "clave": "clave-segura-1"}).status_code == 429
+    auth._fallos.clear()
+
+
+def test_token_alterado_vencido_o_usuario_inactivo(client):
+    from sqlmodel import Session
+
+    from app.backend import auth
+
+    u = nuevo_usuario("temporal", "clave-temporal")
+    token = auth.crear_token(u)
+    assert auth.leer_token(token).usuario == "temporal"
+    uid, exp, firma = token.split(".")
+    assert auth.leer_token(f"{int(uid) + 1}.{exp}.{firma}") is None   # otro id con la misma firma
+    assert auth.leer_token(f"{uid}.{int(exp) + 999}.{firma}") is None        # extender la expiración
+    assert auth.leer_token(auth.crear_token(u, ahora=0)) is None              # vencido
+    assert auth.leer_token("basura") is None and auth.leer_token(None) is None
+    with Session(auth.auth_engine) as s:
+        s.get(auth.Usuario, u.id).activo = False
+        s.commit()
+    assert auth.leer_token(token) is None
+    assert auth.autenticar("temporal", "clave-temporal") is None
+
+
+def test_cli_crear_usuario(client, monkeypatch, capsys):
+    from app.backend import auth
+
+    monkeypatch.setattr(auth.getpass, "getpass", lambda _prompt: "otra-clave-1")
+    auth.main(["crear", "Nuevo", "--nombre", "Nuevo Usuario"])
+    assert auth.autenticar("nuevo", "otra-clave-1").nombre == "Nuevo Usuario"
+    with pytest.raises(SystemExit):
+        auth.main(["crear", "nuevo"])
+    auth.main(["desactivar", "nuevo"])
+    assert auth.autenticar("nuevo", "otra-clave-1") is None
+    auth.main(["listar"])
+    assert "INACTIVO" in capsys.readouterr().out
+
+
+def test_fuente_no_se_expone(client):
+    # La fuente sólo se guarda para trazabilidad interna: no aparece en API, catálogos ni exportaciones
+    r = client.get("/api/unidades", params={"page_size": 1}).json()["results"][0]
+    assert "fuente" not in r and "fuente" not in client.get(f"/api/unidades/{r['id']}").json()
+    assert "fuentes" not in client.get("/api/catalogos").json()
+    assert "fuente" not in client.get("/api/export.csv").text.splitlines()[0]

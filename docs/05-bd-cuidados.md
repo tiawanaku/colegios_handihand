@@ -1,6 +1,6 @@
-# BD de cuidados.elalto.gob.bo: análisis y conexión
+# BD de cuidados: análisis y conexión
 
-Análisis del dump `cuidados.sql` (PostgreSQL 17, pg_dump). Confirma la arquitectura que se había inferido: es **Django** con `django-simple-history` (tablas `historical*`), `django-guardian` (permisos por objeto), `django-mptt` (`core_gameaestructura`) y borrado lógico (`deleted`, `deleted_by_cascade`).
+Análisis del dump `cuidados.sql` (PostgreSQL 17, pg_dump). Es una base **Django** con `django-simple-history` (tablas `historical*`), `django-guardian` (permisos por objeto), `django-mptt` (`core_gameaestructura`) y borrado lógico (`deleted`, `deleted_by_cascade`).
 
 ## Modelo
 

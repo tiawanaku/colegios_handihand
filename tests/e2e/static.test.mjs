@@ -17,7 +17,7 @@ let server, browser, page, tmp, html;
 
 before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "colegios-static-"));
-  const env = { ...process.env };
+  const env = { ...process.env, COLEGIOS_AUTH: "0" }; // aquí se compara la API, no el login
   if (!process.env.COLEGIOS_DB) {
     env.COLEGIOS_DB = `sqlite:///${path.join(tmp, "s.db")}`;
     execFileSync(PY, ["-m", "app.backend.importer", "app/data/demo_unidades.csv", "--fuente", "DEMO"], { cwd: ROOT, env });
@@ -33,6 +33,7 @@ before(async () => {
   page = await browser.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
+  await page.route(/openstreetmap\.org|cartocdn\.com/, (r) => r.abort()); // sin red externa: rótulos de distrito
   // Sin red externa: los CDN se sirven con las copias locales de vendor/
   const vendor = path.join(ROOT, "app/frontend/vendor");
   await page.route(/leaflet@1\.9\.4\/dist\/leaflet\.js$/, (r) => r.fulfill({ path: path.join(vendor, "leaflet/leaflet.js"), contentType: "text/javascript" }));

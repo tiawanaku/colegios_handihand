@@ -61,7 +61,6 @@ function createStaticApi(rows) {
       dependencias: set((r) => (r.dependencia ? [r.dependencia] : [])),
       distritos: [...new Set(rows.map((r) => r.distrito_municipal).filter((d) => d != null))].sort((a, b) => a - b),
       niveles: set((r) => lista(r.niveles)), turnos: set((r) => lista(r.turnos)), subsistemas: set((r) => lista(r.subsistema)),
-      fuentes: set((r) => (r.fuente ? [r.fuente] : [])),
       campos: { matricula: rows.some((r) => r.estudiantes_total != null) },
     };
   }

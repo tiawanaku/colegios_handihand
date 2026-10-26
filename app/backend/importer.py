@@ -1,7 +1,8 @@
-"""Importa datos cosechados (recon/out/**) o CSV/JSON/GeoJSON a la base.
+"""Importa archivos CSV/JSON/GeoJSON a la base (datos de prueba o cargas propias).
+
+Con la BD de cuidados no hace falta: el dashboard lee directamente la vista db/vista_unidad_educativa.sql.
 
 Uso:
-    python -m app.backend.importer recon/out/harvest/data/*.json --fuente cuidados.elalto.gob.bo
     python -m app.backend.importer app/data/demo_unidades.csv --fuente DEMO
 """
 from __future__ import annotations
@@ -54,10 +55,6 @@ def read_file(path: Path) -> Iterator[dict]:
             yield from csv.DictReader(fh)
     elif suffix in (".json", ".geojson"):
         yield from _records_from_json(json.loads(path.read_text(encoding="utf-8")))
-    elif suffix == ".pdf":
-        from .pdf_report import parse_pdf
-
-        yield from parse_pdf(path)
 
 
 def upsert(records: Iterable[dict], fuente: str | None) -> dict[str, int]:

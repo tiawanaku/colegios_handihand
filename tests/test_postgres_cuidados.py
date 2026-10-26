@@ -32,7 +32,7 @@ where i.deleted is null and c.propiedad = :prop and c.valor = :valor
 def api():
     port = 8700 + os.getpid() % 200
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.backend.main:app", "--port", str(port)],
-                            cwd=ROOT, env={**os.environ, "COLEGIOS_DB": URL},
+                            cwd=ROOT, env={**os.environ, "COLEGIOS_DB": URL, "COLEGIOS_AUTH": "0"},  # compara datos, no el login
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     client = httpx.Client(base_url=f"http://127.0.0.1:{port}/api", timeout=30)
     for _ in range(50):
