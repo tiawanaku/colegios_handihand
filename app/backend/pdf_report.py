@@ -1,55 +1,8 @@
-"""Lectura y escritura del "Reporte de Unidades Educativas" en PDF.
-
-El sitio original publica /educacion/api/reporte/pdf/ con la tabla
-Nombre | Dist. | Dependencia | Dirección | Nivel. `parse_pdf` convierte ese PDF
-en registros; `build_pdf` genera un reporte con la misma estructura (y más
-columnas) desde nuestra base.
-"""
+"""Exportación del "Reporte de Unidades Educativas" en PDF."""
 from __future__ import annotations
 
 import io
-import re
-from pathlib import Path
-from typing import Iterable, Iterator
-
-HEADER_ALIASES = {
-    "nombre": "nombre",
-    "dist": "distrito",
-    "distrito": "distrito",
-    "dependencia": "dependencia",
-    "direccion": "direccion",
-    "dirección": "direccion",
-    "nivel": "nivel",
-    "niveles": "nivel",
-    "turno": "turno",
-    "rue": "rue",
-}
-
-
-def _header_key(cell: str | None) -> str | None:
-    if not cell:
-        return None
-    key = re.sub(r"[^a-záéíóúñ]", "", cell.strip().lower())
-    return HEADER_ALIASES.get(key)
-
-
-def parse_pdf(path: Path | str) -> Iterator[dict]:
-    import pdfplumber
-
-    header: list[str | None] | None = None
-    with pdfplumber.open(str(path)) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for row in table:
-                    keys = [_header_key(c) for c in row]
-                    if "nombre" in keys:
-                        header = keys  # cabecera (se repite en cada página)
-                        continue
-                    if header is None or not any(row):
-                        continue
-                    rec = {k: (v or "").replace("\n", " ").strip() for k, v in zip(header, row) if k}
-                    if rec.get("nombre"):
-                        yield rec
+from typing import Iterable
 
 
 def build_pdf(rows: Iterable, titulo: str = "Reporte de Unidades Educativas") -> bytes:

@@ -1,6 +1,7 @@
-"""Genera datos FICTICIOS (fuente=DEMO) para probar el sistema sin acceso al sitio original.
+"""Genera datos FICTICIOS (fuente=DEMO) para probar el sistema sin la BD de cuidados.
 
-Ningún registro corresponde a una unidad educativa real; los datos reales se obtienen con recon/.
+Ningún registro corresponde a una unidad educativa real; los datos reales salen de la BD de cuidados
+(db/vista_unidad_educativa.sql).
 """
 import csv
 import random

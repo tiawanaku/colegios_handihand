@@ -136,7 +136,7 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
   <div class="wrap">
     <div class="brand">
       <h1 id="titulo-agente">COLEGIOS_HANDIHAND</h1>
-      <span id="sub-agente">Product Owner del dashboard de Unidades Educativas de El Alto</span>
+      <span id="sub-agente">Product Owner del dashboard Colegios Handihand</span>
     </div>
     <nav class="views" aria-label="Agentes">
       <a href="#po" id="tab-po">COLEGIOS_HANDIHAND · PO</a>
@@ -243,10 +243,10 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
 // ============================================================================ contexto del producto
 const DASHBOARD_URL = "https://claude.ai/artifact/BKJgZrZqrd15MbMasKE6y9";
 const CONTEXTO = `SISTEMA ACTUAL (versión 1, ya construida):
-Dashboard web de Unidades Educativas de El Alto (Bolivia), réplica mejorada del módulo de educación de cuidados.elalto.gob.bo (Gobierno Autónomo Municipal de El Alto). Lee la base de datos real (PostgreSQL/Django del sistema de cuidados) mediante una vista SQL. Demo: ${DASHBOARD_URL}
+Dashboard web "Colegios Handihand" de unidades educativas fiscales, de convenio y privadas (Bolivia). Lee la base de datos PostgreSQL mediante una vista SQL. Demo: ${DASHBOARD_URL}
 Datos: 591 unidades educativas (465 fiscales, 67 de convenio, 59 privadas); subsistemas Regular 548, Alternativa 28, Especial 12, Permanente 3; 15 niveles educativos; turnos mañana/tarde/noche; distritos 1 a 14; todas con coordenadas.
-Funciones: filtros combinables por dependencia, subsistema, nivel, turno, distrito y búsqueda de texto; 4 indicadores (total, fiscales, convenio, privadas); mapa con puntos por dependencia; gráfico de unidades por distrito y dependencia; dona por dependencia; barras de oferta por nivel; listado paginado y ordenable; ficha de detalle (dirección, zona, teléfono, niveles, turnos); exportación a CSV, Excel y PDF (versión con servidor); enlace compartible con los filtros; modo claro/oscuro; uso en celular.
-Limitaciones conocidas: la base no tiene código RUE, matrícula (estudiantes), docentes, director ni correo; solo 49 colegios tienen teléfono; 4 colegios sin distrito y 2 con coordenadas fuera de El Alto; 17 sin turno; los centros alternativos están mal marcados como "especial" en un campo del catálogo.
+Funciones: filtros combinables por dependencia, subsistema, nivel, turno, distrito y búsqueda de texto; 4 indicadores (total, fiscales, convenio, privadas); mapa con puntos por dependencia; gráfico de unidades por distrito y dependencia; dona por dependencia; barras de oferta por nivel; listado paginado y ordenable; ficha de detalle (dirección, zona, teléfono, niveles, turnos); exportación a CSV, Excel y PDF (versión con servidor); acceso con usuario y contraseña (versión con servidor); enlace compartible con los filtros; modo claro/oscuro; uso en celular.
+Limitaciones conocidas: la base no tiene código RUE, matrícula (estudiantes), docentes, director ni correo; solo 49 colegios tienen teléfono; 4 colegios sin distrito y 2 con coordenadas fuera del área urbana; 17 sin turno; los centros alternativos están mal marcados como "especial" en un campo del catálogo.
 Tecnología: FastAPI + PostgreSQL, frontend en JavaScript con Leaflet y Chart.js.`;
 
 const REGLAS_PO = `Eres COLEGIOS_HANDIHAND, el Product Owner del sistema descrito abajo. Conversas en español (Bolivia) con el CLIENTE, que no es técnico, para descubrir qué cambios o funciones nuevas quiere.
@@ -323,7 +323,7 @@ function vista() {
   $("#titulo-agente").textContent = scrum ? "SCRUM_HANDIHAND" : "COLEGIOS_HANDIHAND";
   $("#sub-agente").textContent = scrum
     ? "Scrum Master: convierte las historias firmadas en backlog y sprints para el equipo"
-    : "Product Owner del dashboard de Unidades Educativas de El Alto";
+    : "Product Owner del dashboard Colegios Handihand";
 }
 window.addEventListener("hashchange", vista);
 
@@ -336,7 +336,7 @@ function renderChat() {
   pill.className = `pill ${r?.estado || "abierta"}`;
   pill.textContent = r ? `Ronda ${r.numero} · ${ESTADO_TXT[r.estado]}` : "Nueva ronda";
   const html = mensajes.map((m) => `<div class="msg ${m.role}"><span class="who">${m.role === "user" ? "Cliente" : "COLEGIOS_HANDIHAND"}</span>${esc(m.content)}</div>`);
-  if (!mensajes.length) html.push(`<div class="msg assistant"><span class="who">COLEGIOS_HANDIHAND</span>¡Hola! Soy el Product Owner del dashboard de Unidades Educativas de El Alto. Puede verlo aquí: ${esc(DASHBOARD_URL)}\n\n¿Qué le gustaría cambiar, mejorar o agregar? Puede contarme con sus propias palabras.</div>`);
+  if (!mensajes.length) html.push(`<div class="msg assistant"><span class="who">COLEGIOS_HANDIHAND</span>¡Hola! Soy el Product Owner del dashboard Colegios Handihand. Puede verlo aquí: ${esc(DASHBOARD_URL)}\n\n¿Qué le gustaría cambiar, mejorar o agregar? Puede contarme con sus propias palabras.</div>`);
   box.innerHTML = html.join("") + (S.enviando ? `<div class="msg assistant thinking" id="burbuja"><span class="who">COLEGIOS_HANDIHAND</span>Pensando…</div>` : "");
   box.scrollTop = box.scrollHeight;
   const bloqueado = r?.estado === "en_firma";
@@ -368,7 +368,7 @@ function renderHistorias() {
 
 function actaHTML(acta, firma, integra) {
   return `<div><span class="eyebrow">Acta de conformidad de requerimientos · N.º ${esc(acta.numero)}</span>
-      <h2 id="acta-titulo">Cambios al dashboard de Unidades Educativas de El Alto</h2>
+      <h2 id="acta-titulo">Cambios al dashboard Colegios Handihand</h2>
       <p class="muted" style="margin:4px 0 0">Elaborada por COLEGIOS_HANDIHAND (Product Owner) el ${esc(fechaLarga(acta.fecha))}.</p></div>
     ${acta.resumen ? `<p style="margin:0">${esc(acta.resumen)}</p>` : ""}
     <div class="tw"><table><thead><tr><th>Código</th><th>Historia de usuario</th><th>Criterios de aceptación</th><th>Prioridad</th></tr></thead><tbody>

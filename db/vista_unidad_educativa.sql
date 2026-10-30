@@ -1,4 +1,4 @@
--- Vista `unidad_educativa` sobre la BD de cuidados.elalto.gob.bo (Django: core_institucion + catálogo EAV).
+-- Vista `unidad_educativa` sobre la BD de cuidados (Django: core_institucion + catálogo EAV).
 -- Con esta vista, el backend de este repo funciona contra la BD real sin copiar datos:
 --     psql -d cuidados -f db/vista_unidad_educativa.sql
 --     COLEGIOS_DB=postgresql+psycopg://usuario@host/cuidados uvicorn app.backend.main:app
@@ -49,7 +49,7 @@ SELECT i.id,
        i.longitud                                             AS lon,
        NULL::integer AS estudiantes_total, NULL::integer AS estudiantes_mujeres,
        NULL::integer AS estudiantes_hombres, NULL::integer AS docentes,         -- la BD no tiene matrícula
-       'cuidados.elalto.gob.bo'::varchar                      AS fuente,
+       NULL::varchar                                         AS fuente,
        COALESCE(ue.fecha, now())                              AS actualizado
 FROM core_institucion i
 JOIN core_tipoinstitucion t ON t.id = i.id_tipo_institucion_id AND t.nombre = 'EDUCACION'

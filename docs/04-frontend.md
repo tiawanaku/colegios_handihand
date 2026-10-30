@@ -27,7 +27,7 @@ SELECT ue.id,
        NULL::text AS distrito_educativo, ue.zona, ue.direccion, ue.telefono, ue.director, ue.area,
        ST_Y(ue.geom) AS lat, ST_X(ue.geom) AS lon,
        m.total AS estudiantes_total, m.mujeres AS estudiantes_mujeres, m.hombres AS estudiantes_hombres,
-       m.docentes, 'BD municipal' AS fuente, now() AS actualizado
+       m.docentes, NULL AS fuente, now() AS actualizado
 FROM unidades ue LEFT JOIN matricula m ON m.ue_id = ue.id;
 ```
 
@@ -43,7 +43,7 @@ Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de ca
 
 | Endpoint | Respuesta mínima |
 |---|---|
-| `GET /catalogos` | `{dependencias, subsistemas, niveles, turnos: [str], distritos: [int], fuentes: [str], campos: {matricula: bool}}`. Si `matricula` es `false`, se ocultan el KPI de estudiantes, la columna y el orden por estudiantes |
+| `GET /catalogos` | `{dependencias, subsistemas, niveles, turnos: [str], distritos: [int], campos: {matricula: bool}}`. Si `matricula` es `false`, se ocultan el KPI de estudiantes, la columna y el orden por estudiantes |
 | `GET /estadisticas?<filtros>` | `{total_unidades, por_dependencia: {DEP: n}, por_nivel: {NIVEL: n}, por_distrito: {"8": {DEP: n}}, estudiantes: {total}, ratio_estudiante_docente}` |
 | `GET /geojson?<filtros>` | `FeatureCollection` de puntos con `properties: {id, nombre, dependencia}` |
 | `GET /unidades?<filtros>&page&page_size&orden` | `{count, results: [{id, nombre, distrito_municipal, dependencia, direccion, niveles, turnos, estudiantes_total}]}`. `orden` puede ser `nombre`, `distrito_municipal`, `dependencia` o `estudiantes_total`, con `-` delante para orden descendente |
@@ -69,7 +69,7 @@ Para la BD de cuidados (Django), ver `docs/05-bd-cuidados.md` y `db/vista_unidad
 | Modo | Cómo | Notas |
 |---|---|---|
 | **Con servidor** (datos en vivo) | `docker build -t colegios . && docker run -p 8000:8000 -e COLEGIOS_DB=... colegios` | Incluye exportación CSV/Excel/PDF |
-| **Estático** (sin servidor) | `COLEGIOS_DB=... python -m app.build_static dist/colegios.html` | Una sola página HTML con los datos incrustados. `static-api.js` responde la misma API en el navegador. Sirve para GitHub Pages, intranet o un USB. Sin exportaciones. Agrega `--tiles` si el sitio permite cargar el mapa base de OpenStreetMap |
+| **Estático** (sin servidor) | `COLEGIOS_DB=... python -m app.build_static dist/colegios.html` | Una sola página HTML con los datos incrustados. `static-api.js` responde la misma API en el navegador. Sirve para GitHub Pages, intranet o un USB. Sin exportaciones. Incluye mapa base (OpenStreetMap, con CARTO de respaldo); `--sin-tiles` lo omite |
 
 `tests/e2e/static.test.mjs` verifica que el modo estático responda **igual** que el backend en unas 30 combinaciones de filtros (con `COLEGIOS_DB` compara contra esa BD).
 
