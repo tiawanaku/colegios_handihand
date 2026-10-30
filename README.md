@@ -5,6 +5,7 @@ Ingeniería inversa del módulo educativo de [cuidados.elalto.gob.bo](https://cu
 ```
 docs/      hallazgos, modelo de datos, mejoras, contrato del frontend y análisis de la BD real
 db/        vista SQL sobre la BD de cuidados (Django/PostgreSQL)
+agentes/   COLEGIOS_HANDIHAND (Product Owner) y SCRUM_HANDIHAND, ver docs/06-agentes.md
 recon/     kit REA + Playwright para extraer endpoints, UI y datos del sitio original
 app/       sistema mejorado: API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
 tests/     pruebas: API (pytest) y frontend end-to-end (npm run test:e2e)

@@ -1,0 +1,871 @@
+<title>COLEGIOS_HANDIHAND</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<style>
+/* Mesa de trabajo de dos agentes: el PO conversa con el cliente (izq.) y arma historias (der.);
+   SCRUM convierte las actas firmadas en backlog y sprints. Tinta azul andina sobre papel frío. */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --ink: #172235; --muted: #5d6b80; --line: #d9e0ea;
+  --accent: #1d4f91; --accent-ink: #ffffff; --accent-soft: #e4ecf7;
+  --scrum: #6b3fa0; --scrum-soft: #efe8f8;
+  --ok: #17734a; --ok-soft: #e2f3ea; --warn: #9a5b00; --warn-soft: #fbf0db; --bad: #a3271b; --bad-soft: #fbe6e3;
+  --must: #a3271b; --should: #9a5b00; --could: #1d4f91; --wont: #6b778a;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --surface: #171e29; --ink: #e5ebf3; --muted: #97a4b6; --line: #2a3443;
+    --accent: #7eaaf0; --accent-ink: #0f141c; --accent-soft: #1d2b42; --scrum: #b994ec; --scrum-soft: #2a2140;
+    --ok: #6fd3a2; --ok-soft: #173326; --warn: #f0b860; --warn-soft: #3a2c14; --bad: #f19a8f; --bad-soft: #3d1c19;
+    --must: #f19a8f; --should: #f0b860; --could: #7eaaf0; --wont: #97a4b6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --surface: #171e29; --ink: #e5ebf3; --muted: #97a4b6; --line: #2a3443;
+  --accent: #7eaaf0; --accent-ink: #0f141c; --accent-soft: #1d2b42; --scrum: #b994ec; --scrum-soft: #2a2140;
+  --ok: #6fd3a2; --ok-soft: #173326; --warn: #f0b860; --warn-soft: #3a2c14; --bad: #f19a8f; --bad-soft: #3d1c19;
+  --must: #f19a8f; --should: #f0b860; --could: #7eaaf0; --wont: #97a4b6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 8px 14px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.scrum { background: var(--scrum); color: var(--accent-ink); border-color: var(--scrum); font-weight: 600; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { background: var(--surface); border-bottom: 1px solid var(--line); padding-block: 14px; }
+header.top .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; max-width: 1280px; margin: 0 auto; }
+.brand { display: grid; gap: 2px; }
+.brand h1 { font: 600 22px/1.1 var(--font-display); letter-spacing: .2px; }
+.brand span { color: var(--muted); font-size: 13px; }
+nav.views { display: flex; gap: 6px; margin-left: auto; }
+nav.views a { text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-weight: 600; font-size: 13px; font-family: var(--font-mono); }
+nav.views a[aria-current="page"] { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+nav.views a.scrum-tab[aria-current="page"] { background: var(--scrum); border-color: var(--scrum); }
+main { max-width: 1280px; margin: 0 auto; padding-block: 20px 40px; display: grid; gap: 16px; }
+.banner { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); }
+.banner.warn { background: var(--warn-soft); border-color: transparent; color: var(--ink); }
+.banner.bad { background: var(--bad-soft); border-color: transparent; }
+.banner.ok { background: var(--ok-soft); border-color: transparent; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.panel > header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.panel > header h2 { font-size: 15px; }
+.panel .body { padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.eyebrow { font: 600 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font: 600 12px/1.6 var(--font-mono); white-space: nowrap; }
+.pill.abierta { background: var(--accent-soft); color: var(--accent); }
+.pill.en_firma { background: var(--warn-soft); color: var(--warn); }
+.pill.entregada, .pill.planificada { background: var(--ok-soft); color: var(--ok); }
+.muted { color: var(--muted); }
+/* chat */
+.chat { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(78vh, 760px); }
+.msgs { overflow-y: auto; padding: 16px; display: grid; gap: 12px; align-content: start; }
+.msg { max-width: 88%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.msg.assistant { justify-self: start; background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg .who { display: block; font: 600 11px/1.4 var(--font-mono); opacity: .75; margin-bottom: 2px; }
+.msg.thinking { color: var(--muted); font-style: italic; }
+.composer { border-top: 1px solid var(--line); padding: 12px 16px; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.composer textarea { resize: vertical; min-height: 44px; max-height: 200px; }
+.composer .actions { display: grid; gap: 6px; align-content: end; }
+.toolnote { font: 12px/1.4 var(--font-mono); color: var(--muted); justify-self: center; }
+/* historias */
+.historias { display: grid; gap: 10px; }
+.hu { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; background: var(--surface); }
+.hu.descartada { opacity: .55; }
+.hu .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.hu .cod { font: 600 12px var(--font-mono); color: var(--accent); }
+.hu h3 { font-size: 15px; }
+.hu .story { color: var(--muted); font-size: 14px; }
+.hu .story b { color: var(--ink); font-weight: 600; }
+.hu ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
+.prio { font: 600 11px/1.6 var(--font-mono); border-radius: 4px; padding: 0 6px; border: 1px solid currentColor; }
+.prio.MUST { color: var(--must); } .prio.SHOULD { color: var(--should); } .prio.COULD { color: var(--could); } .prio.WONT { color: var(--wont); }
+.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; }
+/* acta */
+.acta { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px clamp(16px, 4vw, 40px); display: grid; gap: 14px; }
+.acta h2 { font: 600 24px/1.2 var(--font-display); }
+.acta table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.acta th, .acta td { text-align: left; border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+.acta .tw { overflow-x: auto; }
+.hash { font: 12px var(--font-mono); overflow-wrap: anywhere; color: var(--muted); }
+.firma-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.firma-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.pad-wrap { display: grid; gap: 6px; }
+canvas.pad { width: 100%; max-width: 520px; height: 160px; border: 1px dashed var(--muted); border-radius: 8px; background: var(--bg); touch-action: none; }
+.firmado { display: grid; gap: 6px; border-left: 4px solid var(--ok); padding: 8px 14px; background: var(--ok-soft); border-radius: 0 8px 8px 0; }
+.firmado img { max-width: 260px; background: #fff; border-radius: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* scrum */
+.cfg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.cfg label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.tw { overflow-x: auto; }
+table.backlog { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.backlog th, table.backlog td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
+.sprints { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.sprint { border: 1px solid var(--line); border-top: 4px solid var(--scrum); border-radius: 10px; padding: 12px; display: grid; gap: 8px; align-content: start; background: var(--surface); }
+.sprint h3 { font-size: 15px; }
+.sprint .meta { font: 12px var(--font-mono); color: var(--muted); }
+.bar { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--scrum); }
+.item { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 4px; }
+.item .t { font-weight: 600; font-size: 14px; }
+.tarea { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
+.tarea input { width: auto; margin-top: 3px; }
+.tarea.hecha span { text-decoration: line-through; color: var(--muted); }
+.tipo { font: 600 10.5px/1.6 var(--font-mono); color: var(--scrum); background: var(--scrum-soft); border-radius: 4px; padding: 0 5px; }
+.list { margin: 0; padding-left: 18px; }
+[hidden] { display: none !important; }
+@media (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; }
+  .chat { height: 70vh; }
+}
+@media (prefers-reduced-motion: no-preference) { .msg { animation: in .18s ease-out; } @keyframes in { from { transform: translateY(4px); opacity: .6; } } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1 id="titulo-agente">COLEGIOS_HANDIHAND</h1>
+      <span id="sub-agente">Product Owner del dashboard de Unidades Educativas de El Alto</span>
+    </div>
+    <nav class="views" aria-label="Agentes">
+      <a href="#po" id="tab-po">COLEGIOS_HANDIHAND · PO</a>
+      <a href="#scrum" id="tab-scrum" class="scrum-tab">SCRUM_HANDIHAND</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="aviso" class="banner warn" role="status">Conectando con la mesa de trabajo…</div>
+
+  <!-- ======================= VISTA PO ======================= -->
+  <section id="vista-po" aria-labelledby="titulo-agente">
+    <div class="cols">
+      <section class="panel chat" aria-label="Conversación con el Product Owner">
+        <header>
+          <h2>Conversación</h2>
+          <span id="ronda-pill" class="pill abierta">Ronda —</span>
+          <span class="muted" style="font-size:13px">Cuéntele al PO qué quiere cambiar o agregar al sistema.</span>
+        </header>
+        <div id="msgs" class="msgs" aria-live="polite"></div>
+        <form id="composer" class="composer">
+          <label for="entrada" class="eyebrow" style="grid-column:1/-1">Su mensaje</label>
+          <textarea id="entrada" rows="2" placeholder="Ej.: Quisiera poder ver cuántos estudiantes tiene cada colegio…" required></textarea>
+          <div class="actions">
+            <button type="submit" class="primary" id="enviar">Enviar</button>
+            <button type="button" id="detener" hidden>Detener</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="h-historias">
+        <header>
+          <h2 id="h-historias">Historias de usuario de esta ronda</h2>
+          <span id="hu-count" class="muted" style="font-size:13px"></span>
+        </header>
+        <div class="body">
+          <div id="historias" class="historias"></div>
+          <div class="row">
+            <button type="button" class="primary" id="btn-acta" disabled>Preparar acta para firma</button>
+            <span class="muted" style="font-size:13px">El PO también la prepara cuando usted indique que ya no hay más cambios.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section id="acta-wrap" class="acta" hidden aria-labelledby="acta-titulo"></section>
+    <section id="historial" class="panel" hidden aria-labelledby="h-hist">
+      <header><h2 id="h-hist">Actas anteriores</h2></header>
+      <div class="body" id="historial-body"></div>
+    </section>
+  </section>
+
+  <!-- ======================= VISTA SCRUM ======================= -->
+  <section id="vista-scrum" hidden>
+    <section class="panel" aria-labelledby="h-entregas">
+      <header>
+        <h2 id="h-entregas">Historias recibidas del PO</h2>
+        <span class="muted" style="font-size:13px">Solo entran historias de actas firmadas por el cliente.</span>
+      </header>
+      <div class="body">
+        <div id="entregas"></div>
+        <div class="cfg">
+          <label for="cfg-vel">Velocidad (puntos/sprint)<input id="cfg-vel" type="number" min="5" max="200" value="21"></label>
+          <label for="cfg-sem">Duración del sprint (semanas)<input id="cfg-sem" type="number" min="1" max="4" value="2"></label>
+          <label for="cfg-ini">Inicio del primer sprint<input id="cfg-ini" type="date"></label>
+          <label for="cfg-dev">Desarrolladores<input id="cfg-dev" type="number" min="1" max="20" value="3"></label>
+        </div>
+        <div class="row">
+          <button type="button" class="scrum" id="btn-planificar" disabled>Generar backlog y sprints</button>
+          <button type="button" id="btn-detener-scrum" hidden>Detener</button>
+          <span id="scrum-estado" class="muted" style="font-size:13px"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-backlog">
+      <header><h2 id="h-backlog">Product backlog</h2><span id="backlog-total" class="muted" style="font-size:13px"></span></header>
+      <div class="body"><div id="backlog" class="tw"></div></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-sprints">
+      <header><h2 id="h-sprints">Sprints</h2></header>
+      <div class="body">
+        <div id="sprints" class="sprints"></div>
+        <div id="dod"></div>
+      </div>
+    </section>
+
+    <section class="panel chat" aria-label="Ajustes con SCRUM_HANDIHAND" style="height:auto">
+      <header><h2>Ajustar con SCRUM_HANDIHAND</h2><span class="muted" style="font-size:13px">Ej.: “pasa HU-03 al sprint 2”, “HU-05 vale 8 puntos”, “agrega una tarea de pruebas a HU-01”.</span></header>
+      <div id="scrum-msgs" class="msgs" style="max-height:340px"></div>
+      <form id="scrum-composer" class="composer">
+        <label for="scrum-entrada" class="eyebrow" style="grid-column:1/-1">Instrucción para el Scrum Master</label>
+        <textarea id="scrum-entrada" rows="2" required></textarea>
+        <div class="actions"><button type="submit" class="scrum" id="scrum-enviar">Enviar</button></div>
+      </form>
+    </section>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ============================================================================ contexto del producto
+const DASHBOARD_URL = "https://claude.ai/artifact/BKJgZrZqrd15MbMasKE6y9";
+const CONTEXTO = `SISTEMA ACTUAL (versión 1, ya construida):
+Dashboard web de Unidades Educativas de El Alto (Bolivia), réplica mejorada del módulo de educación de cuidados.elalto.gob.bo (Gobierno Autónomo Municipal de El Alto). Lee la base de datos real (PostgreSQL/Django del sistema de cuidados) mediante una vista SQL. Demo: ${DASHBOARD_URL}
+Datos: 591 unidades educativas (465 fiscales, 67 de convenio, 59 privadas); subsistemas Regular 548, Alternativa 28, Especial 12, Permanente 3; 15 niveles educativos; turnos mañana/tarde/noche; distritos 1 a 14; todas con coordenadas.
+Funciones: filtros combinables por dependencia, subsistema, nivel, turno, distrito y búsqueda de texto; 4 indicadores (total, fiscales, convenio, privadas); mapa con puntos por dependencia; gráfico de unidades por distrito y dependencia; dona por dependencia; barras de oferta por nivel; listado paginado y ordenable; ficha de detalle (dirección, zona, teléfono, niveles, turnos); exportación a CSV, Excel y PDF (versión con servidor); enlace compartible con los filtros; modo claro/oscuro; uso en celular.
+Limitaciones conocidas: la base no tiene código RUE, matrícula (estudiantes), docentes, director ni correo; solo 49 colegios tienen teléfono; 4 colegios sin distrito y 2 con coordenadas fuera de El Alto; 17 sin turno; los centros alternativos están mal marcados como "especial" en un campo del catálogo.
+Tecnología: FastAPI + PostgreSQL, frontend en JavaScript con Leaflet y Chart.js.`;
+
+const REGLAS_PO = `Eres COLEGIOS_HANDIHAND, el Product Owner del sistema descrito abajo. Conversas en español (Bolivia) con el CLIENTE, que no es técnico, para descubrir qué cambios o funciones nuevas quiere.
+
+Cómo trabajas:
+- Haz pocas preguntas a la vez (una o dos), claras y concretas. Usa palabras del día a día, no jerga técnica.
+- Antes de registrar una historia, entiende quién la necesita, qué quiere hacer y para qué. Si algo es ambiguo, pregunta.
+- Cuando una necesidad esté clara, regístrala con la herramienta registrar_historia en formato "Como <rol>, quiero <acción>, para <beneficio>", con 2 a 5 criterios de aceptación verificables (estilo Dado/Cuando/Entonces, en lenguaje simple) y prioridad MoSCoW (MUST, SHOULD, COULD, WONT) acordada con el cliente. Después cuéntale en una frase lo que registraste.
+- Si el cliente corrige algo, usa actualizar_historia; si desiste de algo, descartar_historia.
+- Si piden algo que los datos actuales no tienen (por ejemplo matrícula o RUE), dilo con honestidad y registra también qué dato haría falta y de dónde podría venir.
+- Nunca prometas fechas, costos ni plazos: eso lo define el equipo Scrum después.
+- Cuando el cliente diga que ya no tiene más cambios, resume las historias y llama a preparar_acta. Explícale que debe revisar el acta y firmarla al final de la página; con su firma las historias pasan al equipo de desarrollo (SCRUM_HANDIHAND).
+- No inventes funciones que el sistema ya tiene: revisa la descripción. Si ya existe, explícale dónde está.
+- Respuestas breves (máximo ~120 palabras), sin Markdown pesado.`;
+
+const REGLAS_SCRUM = `Eres SCRUM_HANDIHAND, Scrum Master y facilitador técnico del equipo que desarrolla el sistema descrito abajo (FastAPI + PostgreSQL + JavaScript). Recibes historias de usuario aprobadas y firmadas por el cliente.`;
+
+// ============================================================================ utilidades
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ahora = () => new Date().toISOString();
+const fechaLarga = (iso) => new Date(iso).toLocaleString("es-BO", { dateStyle: "long", timeStyle: "short" });
+const PRIOS = ["MUST", "SHOULD", "COULD", "WONT"];
+const PRIO_TXT = { MUST: "Imprescindible", SHOULD: "Importante", COULD: "Deseable", WONT: "No por ahora" };
+const ESTADO_TXT = { abierta: "En conversación", en_firma: "Acta pendiente de firma", entregada: "Firmada · entregada a SCRUM", planificada: "Planificada por SCRUM" };
+const ERRORES = {
+  not_granted: "No se permitió que esta página use Claude. Puede habilitarlo en el menú Permisos de la página.",
+  sampling_disabled: "Claude no está disponible para esta cuenta.",
+  rate_limited: "Hay demasiadas solicitudes seguidas o se alcanzó el límite de uso. Intente de nuevo en unos minutos.",
+  session_expired: "Su sesión expiró. Vuelva a iniciar sesión en claude.ai.",
+  refused: "Claude no pudo responder ese mensaje. Intente expresarlo de otra forma.",
+  prompt_too_large: "La conversación es demasiado larga. Prepare el acta de esta ronda e inicie otra.",
+};
+const textoError = (e) => ERRORES[e?.code] || "No se pudo completar la respuesta. Intente de nuevo.";
+
+function aviso(texto, tipo = "warn") {
+  const el = $("#aviso");
+  el.className = `banner ${tipo}`;
+  el.textContent = texto;
+  el.hidden = !texto;
+}
+
+// SHA-256 del contenido del acta (texto canónico), para detectar cambios posteriores a la firma
+async function sha256(texto) {
+  if (!crypto?.subtle) throw new Error("Este navegador no permite calcular la huella del acta (se requiere una conexión segura).");
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const canonActa = (a) => JSON.stringify({ numero: a.numero, fecha: a.fecha, resumen: a.resumen,
+  historias: a.historias.map((h) => [h.codigo, h.titulo, h.como, h.quiero, h.para, h.criterios, h.prioridad]) });
+
+// ============================================================================ estado
+const S = {
+  db: null, user: null, sample: null, downloads: null, uid: null,
+  puedeEscribir: true, esEquipo: false,
+  rondas: [], historias: [], actas: {}, firmas: [], backlog: [], sprints: [], planInfo: null,
+  enviando: false, ctl: null, scrumCtl: null, scrumTurnos: [],
+};
+const rondaActual = () => S.rondas.find((r) => r.estado === "abierta" || r.estado === "en_firma") || null;
+const historiasDe = (rid) => S.historias.filter((h) => h.ronda === rid).sort((a, b) => a.codigo.localeCompare(b.codigo));
+function firmaDe(rid) {
+  for (const f of S.firmas) if (f.actas?.[rid]) return { ...f.actas[rid], uid: f.id };
+  return null;
+}
+
+// ============================================================================ vistas (#po / #scrum)
+function vista() {
+  const scrum = location.hash === "#scrum";
+  $("#vista-po").hidden = scrum;
+  $("#vista-scrum").hidden = !scrum;
+  for (const [el, activo] of [[$("#tab-po"), !scrum], [$("#tab-scrum"), scrum]]) {
+    if (activo) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
+  }
+  $("#titulo-agente").textContent = scrum ? "SCRUM_HANDIHAND" : "COLEGIOS_HANDIHAND";
+  $("#sub-agente").textContent = scrum
+    ? "Scrum Master: convierte las historias firmadas en backlog y sprints para el equipo"
+    : "Product Owner del dashboard de Unidades Educativas de El Alto";
+}
+window.addEventListener("hashchange", vista);
+
+// ============================================================================ render PO
+function renderChat() {
+  const r = rondaActual();
+  const box = $("#msgs");
+  const mensajes = r?.mensajes || [];
+  const pill = $("#ronda-pill");
+  pill.className = `pill ${r?.estado || "abierta"}`;
+  pill.textContent = r ? `Ronda ${r.numero} · ${ESTADO_TXT[r.estado]}` : "Nueva ronda";
+  const html = mensajes.map((m) => `<div class="msg ${m.role}"><span class="who">${m.role === "user" ? "Cliente" : "COLEGIOS_HANDIHAND"}</span>${esc(m.content)}</div>`);
+  if (!mensajes.length) html.push(`<div class="msg assistant"><span class="who">COLEGIOS_HANDIHAND</span>¡Hola! Soy el Product Owner del dashboard de Unidades Educativas de El Alto. Puede verlo aquí: ${esc(DASHBOARD_URL)}\n\n¿Qué le gustaría cambiar, mejorar o agregar? Puede contarme con sus propias palabras.</div>`);
+  box.innerHTML = html.join("") + (S.enviando ? `<div class="msg assistant thinking" id="burbuja"><span class="who">COLEGIOS_HANDIHAND</span>Pensando…</div>` : "");
+  box.scrollTop = box.scrollHeight;
+  const bloqueado = r?.estado === "en_firma";
+  $("#entrada").disabled = bloqueado || S.enviando || !S.sample || !S.puedeEscribir;
+  $("#enviar").disabled = $("#entrada").disabled;
+  $("#entrada").placeholder = bloqueado ? "El acta está lista para firmar. Si quiere más cambios, use “Pedir cambios” en el acta."
+    : "Ej.: Quisiera poder ver cuántos estudiantes tiene cada colegio…";
+}
+
+function huCard(h) {
+  return `<article class="hu ${h.estado === "descartada" ? "descartada" : ""}">
+    <div class="head"><span class="cod">${esc(h.codigo)}</span><span class="prio ${esc(h.prioridad)}" title="${esc(PRIO_TXT[h.prioridad] || "")}">${esc(h.prioridad)}</span>
+      <h3>${esc(h.titulo)}</h3>${h.estado === "descartada" ? '<span class="muted" style="font-size:12px">descartada</span>' : ""}</div>
+    <p class="story" style="margin:0">Como <b>${esc(h.como)}</b>, quiero <b>${esc(h.quiero)}</b>, para <b>${esc(h.para)}</b>.</p>
+    ${h.criterios?.length ? `<div><span class="eyebrow">Criterios de aceptación</span><ul>${h.criterios.map((c) => `<li>${esc(c)}</li>`).join("")}</ul></div>` : ""}
+    ${h.notas ? `<p class="muted" style="margin:0;font-size:13px">Nota: ${esc(h.notas)}</p>` : ""}
+  </article>`;
+}
+
+function renderHistorias() {
+  const r = rondaActual();
+  const hs = r ? historiasDe(r.id) : [];
+  const vivas = hs.filter((h) => h.estado !== "descartada");
+  $("#hu-count").textContent = hs.length ? `${vivas.length} activa${vivas.length === 1 ? "" : "s"}` : "";
+  $("#historias").innerHTML = hs.length ? hs.map(huCard).join("")
+    : `<div class="empty">Aún no hay historias. A medida que converse, el PO irá registrando aquí cada cambio acordado.</div>`;
+  $("#btn-acta").disabled = !(r && r.estado === "abierta" && vivas.length) || !S.puedeEscribir;
+}
+
+function actaHTML(acta, firma, integra) {
+  return `<div><span class="eyebrow">Acta de conformidad de requerimientos · N.º ${esc(acta.numero)}</span>
+      <h2 id="acta-titulo">Cambios al dashboard de Unidades Educativas de El Alto</h2>
+      <p class="muted" style="margin:4px 0 0">Elaborada por COLEGIOS_HANDIHAND (Product Owner) el ${esc(fechaLarga(acta.fecha))}.</p></div>
+    ${acta.resumen ? `<p style="margin:0">${esc(acta.resumen)}</p>` : ""}
+    <div class="tw"><table><thead><tr><th>Código</th><th>Historia de usuario</th><th>Criterios de aceptación</th><th>Prioridad</th></tr></thead><tbody>
+      ${acta.historias.map((h) => `<tr><td style="font-family:var(--font-mono);white-space:nowrap">${esc(h.codigo)}</td>
+        <td><b>${esc(h.titulo)}</b><br>Como ${esc(h.como)}, quiero ${esc(h.quiero)}, para ${esc(h.para)}.</td>
+        <td><ul class="list">${(h.criterios || []).map((c) => `<li>${esc(c)}</li>`).join("")}</ul></td>
+        <td>${esc(PRIO_TXT[h.prioridad] || h.prioridad)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p style="margin:0;font-size:14px">Con la firma de esta acta, el cliente declara que las historias listadas reflejan los cambios solicitados y autoriza su paso al equipo de desarrollo (SCRUM_HANDIHAND), que estimará y planificará su construcción. Cambios posteriores requerirán una nueva ronda y una nueva acta.</p>
+    <p class="hash">Huella del contenido (SHA-256): ${esc(acta.hash)}</p>
+    ${firma ? `<div class="firmado">
+        <strong>Firmada por ${esc(firma.nombre)} · CI ${esc(firma.ci)}${firma.cargo ? ` · ${esc(firma.cargo)}` : ""}</strong>
+        <span class="muted" style="font-size:13px">${esc(fechaLarga(firma.firmadoEn))} · cuenta: <span data-uid="${esc(firma.uid)}">…</span></span>
+        ${firma.trazo ? `<img src="${esc(firma.trazo)}" alt="Firma manuscrita de ${esc(firma.nombre)}">` : ""}
+        <span style="font-size:13px;font-weight:600;color:${integra ? "var(--ok)" : "var(--bad)"}">${integra ? "Contenido íntegro: coincide con lo firmado." : "Atención: el acta fue modificada después de la firma."}</span>
+      </div>` : ""}`;
+}
+
+async function renderActa() {
+  const r = rondaActual();
+  const wrap = $("#acta-wrap");
+  const acta = r && S.actas[r.id];
+  if (!r || r.estado !== "en_firma" || !acta) { wrap.hidden = true; wrap.innerHTML = ""; return; }
+  wrap.hidden = false;
+  wrap.innerHTML = actaHTML(acta, null) + `
+    <form id="form-firma" class="firma-form" aria-label="Firma del acta">
+      <div style="grid-column:1/-1"><span class="eyebrow">Firma del cliente</span></div>
+      <label for="f-nombre">Nombre completo<input id="f-nombre" required autocomplete="name"></label>
+      <label for="f-ci">Cédula de identidad<input id="f-ci" required inputmode="text"></label>
+      <label for="f-cargo">Cargo / institución (opcional)<input id="f-cargo"></label>
+      <div class="pad-wrap" style="grid-column:1/-1">
+        <label for="pad" style="font-size:13px;font-weight:600">Dibuje su firma</label>
+        <canvas id="pad" class="pad" width="520" height="160" aria-label="Área para dibujar la firma"></canvas>
+        <div><button type="button" id="limpiar-pad">Borrar firma</button></div>
+      </div>
+      <label style="grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;font-weight:400">
+        <input type="checkbox" id="f-acepto" required style="width:auto;margin-top:4px">
+        Revisé las historias de esta acta y estoy de acuerdo con que pasen al equipo de desarrollo.
+      </label>
+      <div class="row" style="grid-column:1/-1">
+        <button type="submit" class="primary" id="btn-firmar">Firmar acta</button>
+        <button type="button" id="btn-cambios">Pedir cambios</button>
+        <button type="button" id="btn-descargar" hidden>Descargar copia</button>
+        <span id="firma-estado" class="muted" style="font-size:13px"></span>
+      </div>
+    </form>`;
+  iniciarPad($("#pad"));
+  $("#form-firma").addEventListener("submit", firmar);
+  $("#btn-cambios").addEventListener("click", pedirCambios);
+  const b = $("#btn-descargar");
+  b.hidden = !S.downloads;
+  b.addEventListener("click", () => descargarActa(r.id));
+}
+
+async function renderHistorial() {
+  const cerradas = S.rondas.filter((r) => r.estado === "entregada" || r.estado === "planificada").sort((a, b) => b.numero - a.numero);
+  $("#historial").hidden = !cerradas.length;
+  const partes = [];
+  for (const r of cerradas) {
+    const acta = S.actas[r.id];
+    if (!acta) continue;
+    const firma = firmaDe(r.id);
+    const integra = firma ? firma.hash === (await sha256(canonActa(acta))) && firma.hash === acta.hash : false;
+    partes.push(`<details><summary><b>Acta N.º ${esc(acta.numero)}</b> · ${esc(acta.historias.length)} historias · <span class="pill ${esc(r.estado)}">${esc(ESTADO_TXT[r.estado])}</span></summary>
+      <div class="acta" style="margin-top:10px">${actaHTML(acta, firma, integra)}
+      ${S.downloads ? `<div><button type="button" data-descargar="${esc(r.id)}">Descargar copia</button></div>` : ""}</div></details>`);
+  }
+  $("#historial-body").innerHTML = partes.join("");
+  $("#historial-body").querySelectorAll("[data-descargar]").forEach((b) => b.addEventListener("click", () => descargarActa(b.dataset.descargar)));
+  nombresCuentas();
+}
+
+async function nombresCuentas() {
+  if (!S.user) return;
+  const els = [...document.querySelectorAll("[data-uid]")];
+  if (!els.length) return;
+  const ps = await S.user.profiles(els.map((e) => e.dataset.uid));
+  els.forEach((e) => (e.textContent = ps[e.dataset.uid]?.name || "cuenta de claude.ai"));
+}
+
+function renderPO() { renderChat(); renderHistorias(); renderActa(); renderHistorial(); }
+
+// ============================================================================ pad de firma
+function iniciarPad(canvas) {
+  const ctx = canvas.getContext("2d");
+  ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.strokeStyle = "#172235";
+  let dibujando = false;
+  canvas.dataset.vacio = "1";
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height]; };
+  canvas.addEventListener("pointerdown", (e) => { dibujando = true; canvas.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...pos(e)); });
+  canvas.addEventListener("pointermove", (e) => { if (!dibujando) return; ctx.lineTo(...pos(e)); ctx.stroke(); canvas.dataset.vacio = ""; });
+  canvas.addEventListener("pointerup", () => (dibujando = false));
+  canvas.addEventListener("pointercancel", () => (dibujando = false));
+  $("#limpiar-pad").addEventListener("click", () => { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas.dataset.vacio = "1"; });
+}
+
+function trazoPNG(canvas) {
+  // fondo blanco para que la firma se lea en cualquier tema
+  const c = document.createElement("canvas");
+  c.width = canvas.width; c.height = canvas.height;
+  const x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+// ============================================================================ escrituras PO
+async function asegurarRonda() {
+  let r = rondaActual();
+  if (r) return r;
+  const numero = S.rondas.reduce((m, x) => Math.max(m, x.numero), 0) + 1;
+  const id = `r${String(numero).padStart(3, "0")}`;
+  r = { numero, estado: "abierta", creada: ahora(), mensajes: [] };
+  await S.db.doc(`rondas/${id}`).set(r);
+  r = { id, ...r };
+  if (!S.rondas.some((x) => x.id === id)) S.rondas.push(r);
+  return r;
+}
+
+let guardando = Promise.resolve();
+function guardarMensajes(rid, mensajes) {
+  // una escritura a la vez por documento
+  guardando = guardando.then(() => S.db.doc(`rondas/${rid}`).update({ mensajes: mensajes.slice(-80) })).catch((e) => aviso(`No se pudo guardar la conversación (${e.code}).`, "bad"));
+  return guardando;
+}
+
+function siguienteCodigo() {
+  const max = S.historias.reduce((m, h) => Math.max(m, parseInt(String(h.codigo).replace(/\D/g, ""), 10) || 0), 0);
+  return `HU-${String(max + 1).padStart(2, "0")}`;
+}
+
+const lista = (v) => (Array.isArray(v) ? v : String(v || "").split(/\n|;/)).map((s) => String(s).trim()).filter(Boolean).slice(0, 8);
+const prio = (v) => (PRIOS.includes(String(v).toUpperCase()) ? String(v).toUpperCase() : "SHOULD");
+
+function herramientasPO(r) {
+  return [
+    {
+      name: "registrar_historia",
+      description: "Registra una historia de usuario acordada con el cliente en la ronda actual. Devuelve el código asignado (HU-xx).",
+      inputSchema: { type: "object", required: ["titulo", "como", "quiero", "para", "criterios", "prioridad"], properties: {
+        titulo: { type: "string", description: "Título corto (máx. 8 palabras)" },
+        como: { type: "string", description: "Rol del usuario, p. ej. 'técnico de la Dirección Distrital'" },
+        quiero: { type: "string" }, para: { type: "string" },
+        criterios: { type: "array", items: { type: "string" }, description: "2 a 5 criterios verificables" },
+        prioridad: { type: "string", enum: PRIOS }, notas: { type: "string", description: "Datos faltantes, dudas o dependencias" } } },
+      async execute(i) {
+        const codigo = siguienteCodigo();
+        const h = { ronda: r.id, codigo, titulo: String(i.titulo || "").slice(0, 120), como: String(i.como || ""), quiero: String(i.quiero || ""),
+          para: String(i.para || ""), criterios: lista(i.criterios), prioridad: prio(i.prioridad), notas: String(i.notas || ""),
+          estado: "propuesta", creada: ahora(), autor: S.uid };
+        await S.db.doc(`historias/${codigo}`).set(h);
+        S.historias.push({ id: codigo, ...h });
+        renderHistorias();
+        return { ok: true, codigo };
+      },
+    },
+    {
+      name: "actualizar_historia",
+      description: "Corrige campos de una historia existente de esta ronda por su código. Solo envía los campos que cambian.",
+      inputSchema: { type: "object", required: ["codigo"], properties: {
+        codigo: { type: "string" }, titulo: { type: "string" }, como: { type: "string" }, quiero: { type: "string" }, para: { type: "string" },
+        criterios: { type: "array", items: { type: "string" } }, prioridad: { type: "string", enum: PRIOS }, notas: { type: "string" } } },
+      async execute(i) {
+        const h = S.historias.find((x) => x.codigo === String(i.codigo) && x.ronda === r.id);
+        if (!h) throw new Error(`No existe ${i.codigo} en esta ronda`);
+        const cambios = {};
+        for (const k of ["titulo", "como", "quiero", "para", "notas"]) if (i[k] != null) cambios[k] = String(i[k]);
+        if (i.criterios != null) cambios.criterios = lista(i.criterios);
+        if (i.prioridad != null) cambios.prioridad = prio(i.prioridad);
+        cambios.estado = "propuesta";
+        await S.db.doc(`historias/${h.id}`).update(cambios);
+        Object.assign(h, cambios); renderHistorias();
+        return { ok: true };
+      },
+    },
+    {
+      name: "descartar_historia",
+      description: "Marca como descartada una historia de esta ronda cuando el cliente ya no la quiere.",
+      inputSchema: { type: "object", required: ["codigo"], properties: { codigo: { type: "string" }, motivo: { type: "string" } } },
+      async execute(i) {
+        const h = S.historias.find((x) => x.codigo === String(i.codigo) && x.ronda === r.id);
+        if (!h) throw new Error(`No existe ${i.codigo} en esta ronda`);
+        await S.db.doc(`historias/${h.id}`).update({ estado: "descartada", notas: String(i.motivo || h.notas || "") });
+        h.estado = "descartada"; renderHistorias();
+        return { ok: true };
+      },
+    },
+    {
+      name: "preparar_acta",
+      description: "Cierra la conversación de la ronda y genera el acta de conformidad con las historias activas, para que el cliente la revise y firme. Úsala solo cuando el cliente confirme que no tiene más cambios.",
+      inputSchema: { type: "object", required: ["resumen"], properties: { resumen: { type: "string", description: "2-3 frases que resumen lo acordado" } } },
+      async execute(i) { await prepararActa(r, String(i.resumen || "")); return { ok: true, mensaje: "Acta lista para firma al final de la página." }; },
+    },
+  ];
+}
+
+async function prepararActa(r, resumen) {
+  const hs = historiasDe(r.id).filter((h) => h.estado !== "descartada");
+  if (!hs.length) throw new Error("No hay historias activas para el acta");
+  const acta = { ronda: r.id, numero: r.numero, fecha: ahora(), resumen,
+    historias: hs.map(({ codigo, titulo, como, quiero, para, criterios, prioridad, notas }) => ({ codigo, titulo, como, quiero, para, criterios, prioridad, notas })) };
+  acta.hash = await sha256(canonActa(acta));
+  await S.db.doc(`actas/${r.id}`).set(acta);
+  await S.db.doc(`rondas/${r.id}`).update({ estado: "en_firma" });
+  S.actas[r.id] = acta; r.estado = "en_firma";
+  renderPO();
+  $("#acta-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function enviarPO(ev) {
+  ev.preventDefault();
+  const texto = $("#entrada").value.trim();
+  if (!texto || S.enviando) return;
+  let r;
+  try { r = await asegurarRonda(); } catch (e) { aviso(`No se pudo iniciar la ronda (${e.code || e}).`, "bad"); return; }
+  const mensajes = [...(r.mensajes || []), { role: "user", content: texto, at: ahora(), uid: S.uid }];
+  r.mensajes = mensajes;
+  $("#entrada").value = "";
+  S.enviando = true;
+  renderChat();
+  guardarMensajes(r.id, mensajes);
+  const estadoHistorias = historiasDe(r.id).map(({ codigo, titulo, como, quiero, para, criterios, prioridad, estado, notas }) => ({ codigo, titulo, como, quiero, para, criterios, prioridad, estado, notas }));
+  const reglas = `${REGLAS_PO}\n\n${CONTEXTO}\n\nRONDA ${r.numero}. Historias registradas hasta ahora (JSON):\n${JSON.stringify(estadoHistorias)}`;
+  const turnos = [{ role: "user", content: reglas }, ...mensajes.slice(-30).map(({ role, content }) => ({ role, content }))];
+  S.ctl = new AbortController();
+  $("#detener").hidden = false;
+  try {
+    const { text } = await S.sample(turnos, {
+      cache: false, signal: S.ctl.signal, effort: "low", tools: herramientasPO(r),
+      onText: ({ text }) => { const b = $("#burbuja"); if (b) { b.classList.remove("thinking"); b.innerHTML = `<span class="who">COLEGIOS_HANDIHAND</span>${esc(text)}`; $("#msgs").scrollTop = 1e9; } },
+    });
+    mensajes.push({ role: "assistant", content: text, at: ahora() });
+  } catch (e) {
+    if (e?.text) mensajes.push({ role: "assistant", content: e.text, at: ahora() });
+    if (e?.code !== "cancelled") aviso(textoError(e), "bad");
+    if (e?.code === "not_granted" || e?.code === "sampling_disabled") S.sample = null;
+  } finally {
+    S.enviando = false; S.ctl = null; $("#detener").hidden = true;
+    r.mensajes = mensajes;
+    guardarMensajes(r.id, mensajes);
+    renderPO();
+    $("#entrada").focus();
+  }
+}
+
+async function firmar(ev) {
+  ev.preventDefault();
+  const r = rondaActual();
+  const acta = r && S.actas[r.id];
+  const pad = $("#pad");
+  const estado = $("#firma-estado");
+  if (!acta) return;
+  if (pad.dataset.vacio) { estado.textContent = "Dibuje su firma en el recuadro antes de firmar."; return; }
+  if (!S.uid) { estado.textContent = "Para firmar necesita haber iniciado sesión en claude.ai."; return; }
+  $("#btn-firmar").disabled = true;
+  estado.textContent = "Registrando firma…";
+  try {
+    const hash = await sha256(canonActa(acta));
+    if (hash !== acta.hash) throw { code: "integridad" };
+    const ref = S.db.doc(`firmas/${S.uid}`);
+    const prev = await ref.get();
+    const actas = { ...(prev.exists ? prev.data().actas : {}) };
+    actas[r.id] = { nombre: $("#f-nombre").value.trim(), ci: $("#f-ci").value.trim(), cargo: $("#f-cargo").value.trim(),
+      trazo: trazoPNG(pad), hash, firmadoEn: ahora(), acepto: true };
+    await ref.set({ actas });
+    // traspaso: con la firma, la ronda pasa a SCRUM_HANDIHAND
+    await S.db.doc(`rondas/${r.id}`).update({ estado: "entregada", firmadaPor: S.uid, entregadaEn: ahora() });
+    for (const h of historiasDe(r.id).filter((h) => h.estado !== "descartada")) await S.db.doc(`historias/${h.id}`).update({ estado: "aprobada" });
+    aviso(`Acta N.º ${acta.numero} firmada. Las historias pasaron a SCRUM_HANDIHAND. Puede iniciar otra ronda escribiendo un nuevo mensaje.`, "ok");
+  } catch (e) {
+    estado.textContent = e?.code === "integridad" ? "El acta cambió mientras la revisaba. Recargue la página y revísela de nuevo."
+      : `No se pudo registrar la firma (${e?.code || "error"}). Verifique que tiene permiso para participar en esta página.`;
+    $("#btn-firmar").disabled = false;
+  }
+}
+
+async function pedirCambios() {
+  const r = rondaActual();
+  if (!r) return;
+  await S.db.doc(`rondas/${r.id}`).update({ estado: "abierta" });
+  await S.db.doc(`actas/${r.id}`).delete();
+  r.estado = "abierta"; delete S.actas[r.id];
+  renderPO();
+  $("#entrada").focus();
+}
+
+async function descargarActa(rid) {
+  const acta = S.actas[rid];
+  if (!acta || !S.downloads) return;
+  const firma = firmaDe(rid);
+  const cuerpo = actaHTML(acta, firma, firma ? firma.hash === acta.hash : false).replace(/<span data-uid="[^"]*">…<\/span>/, "claude.ai");
+  const doc = `<!doctype html><html lang="es"><meta charset="utf-8"><title>Acta ${acta.numero} - COLEGIOS_HANDIHAND</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;color:#172235}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ccd;padding:6px;text-align:left;vertical-align:top}.hash{font:12px monospace;color:#555;word-break:break-all}.firmado{border-left:4px solid #17734a;padding:8px 14px;background:#e2f3ea}.firmado img{max-width:260px}.eyebrow{font:600 11px monospace;letter-spacing:.08em;text-transform:uppercase;color:#5d6b80}</style>
+<body>${cuerpo}</body></html>`;
+  try { await S.downloads.save({ filename: `acta-${String(acta.numero).padStart(3, "0")}-colegios-handihand.html`, data: new Blob([doc], { type: "text/html" }) }); }
+  catch { /* el visitante canceló */ }
+}
+
+// ============================================================================ SCRUM
+const rondasParaPlanificar = () => S.rondas.filter((r) => r.estado === "entregada");
+
+function renderScrum() {
+  const pend = rondasParaPlanificar();
+  const hs = pend.flatMap((r) => historiasDe(r.id).filter((h) => h.estado === "aprobada"));
+  $("#entregas").innerHTML = pend.length
+    ? `<p style="margin:0 0 8px">${pend.map((r) => `Acta N.º ${esc(r.numero)}`).join(", ")} · ${hs.length} historias listas para planificar.</p>
+       <div class="historias">${hs.map(huCard).join("")}</div>`
+    : `<div class="empty">No hay historias nuevas. Cuando el cliente firme un acta con COLEGIOS_HANDIHAND, sus historias aparecerán aquí.</div>`;
+  $("#btn-planificar").disabled = !hs.length || !S.sample || !S.esEquipo;
+  $("#scrum-estado").textContent = !S.esEquipo ? "Solo el equipo (editores de la página) puede planificar." : "";
+
+  const items = [...S.backlog].sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
+  const total = items.reduce((s, i) => s + (Number(i.puntos) || 0), 0);
+  $("#backlog-total").textContent = items.length ? `${items.length} ítems · ${total} puntos` : "";
+  $("#backlog").innerHTML = items.length ? `<table class="backlog"><thead><tr><th>#</th><th>Historia</th><th>Prioridad</th><th class="n">Puntos</th><th>Sprint</th><th>Tareas</th></tr></thead><tbody>
+    ${items.map((i, k) => { const hechas = (i.tareas || []).filter((t) => t.estado === "hecha").length;
+      return `<tr><td class="n">${k + 1}</td><td><span style="font:600 12px var(--font-mono);color:var(--scrum)">${esc(i.codigo)}</span> ${esc(i.titulo)}</td>
+      <td><span class="prio ${esc(i.prioridad)}">${esc(i.prioridad)}</span></td><td class="n">${esc(i.puntos)}</td><td>${i.sprint ? `S${esc(i.sprint)}` : "—"}</td>
+      <td class="n">${hechas}/${(i.tareas || []).length}</td></tr>`; }).join("")}</tbody></table>`
+    : `<div class="empty">El backlog está vacío. Genérelo a partir de las historias firmadas.</div>`;
+
+  const sprints = [...S.sprints].sort((a, b) => a.numero - b.numero);
+  $("#sprints").innerHTML = sprints.map((s) => {
+    const its = items.filter((i) => Number(i.sprint) === s.numero);
+    const pts = its.reduce((a, i) => a + (Number(i.puntos) || 0), 0);
+    const tareas = its.flatMap((i) => i.tareas || []);
+    const hechas = tareas.filter((t) => t.estado === "hecha").length;
+    return `<article class="sprint"><h3>Sprint ${esc(s.numero)}</h3>
+      <div class="meta">${esc(s.inicio || "")} → ${esc(s.fin || "")} · ${pts}/${esc(s.capacidad || "?")} pts</div>
+      <p style="margin:0;font-size:14px"><b>Objetivo:</b> ${esc(s.objetivo)}</p>
+      <div class="bar" title="${hechas} de ${tareas.length} tareas hechas"><i style="width:${tareas.length ? Math.round((hechas / tareas.length) * 100) : 0}%"></i></div>
+      ${its.map((i) => `<div class="item"><span class="t">${esc(i.codigo)} · ${esc(i.titulo)} <span class="muted" style="font-weight:400">(${esc(i.puntos)} pts)</span></span>
+        ${(i.tareas || []).map((t, k) => `<label class="tarea ${t.estado === "hecha" ? "hecha" : ""}"><input type="checkbox" data-item="${esc(i.id)}" data-k="${k}" ${t.estado === "hecha" ? "checked" : ""} ${S.esEquipo ? "" : "disabled"}>
+          <span><span class="tipo">${esc(t.tipo)}</span> ${esc(t.titulo)} <span class="muted">${t.horas ? `· ${esc(t.horas)} h` : ""}</span></span></label>`).join("")}
+      </div>`).join("") || '<p class="muted" style="margin:0">Sin ítems.</p>'}</article>`;
+  }).join("") || `<div class="empty">Aún no hay sprints.</div>`;
+  $("#sprints").querySelectorAll("input[data-item]").forEach((cb) => cb.addEventListener("change", () => marcarTarea(cb.dataset.item, Number(cb.dataset.k), cb.checked)));
+
+  const p = S.planInfo;
+  $("#dod").innerHTML = p ? `<div class="cols" style="margin-top:4px">
+    <div><span class="eyebrow">Definición de terminado</span><ul class="list">${(p.dod || []).map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>
+    <div><span class="eyebrow">Riesgos y dependencias</span><ul class="list">${(p.riesgos || []).map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div></div>` : "";
+  renderScrumChat();
+}
+
+function renderScrumChat() {
+  const box = $("#scrum-msgs");
+  box.innerHTML = S.scrumTurnos.map((m) => `<div class="msg ${m.role}"><span class="who">${m.role === "user" ? "Equipo" : "SCRUM_HANDIHAND"}</span>${esc(m.content)}</div>`).join("")
+    || `<p class="muted" style="margin:0">Cuando el backlog exista, puede pedir ajustes aquí.</p>`;
+  box.scrollTop = box.scrollHeight;
+  const ok = S.sample && S.esEquipo && S.backlog.length;
+  $("#scrum-entrada").disabled = !ok; $("#scrum-enviar").disabled = !ok;
+}
+
+async function marcarTarea(itemId, k, hecha) {
+  const it = S.backlog.find((i) => i.id === itemId);
+  if (!it) return;
+  const tareas = (it.tareas || []).map((t, i) => (i === k ? { ...t, estado: hecha ? "hecha" : "pendiente" } : t));
+  try { await S.db.doc(`backlog/${itemId}`).update({ tareas }); }
+  catch (e) { aviso(`No se pudo actualizar la tarea (${e.code}).`, "bad"); }
+}
+
+function sumarDias(iso, dias) { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); }
+
+async function planificar() {
+  const pend = rondasParaPlanificar();
+  const hs = pend.flatMap((r) => historiasDe(r.id).filter((h) => h.estado === "aprobada"));
+  if (!hs.length) return;
+  const vel = Number($("#cfg-vel").value) || 21, sem = Number($("#cfg-sem").value) || 2, devs = Number($("#cfg-dev").value) || 3;
+  const inicio = $("#cfg-ini").value || new Date().toISOString().slice(0, 10);
+  const ultimo = S.sprints.reduce((m, s) => Math.max(m, s.numero), 0);
+  const ocupados = S.sprints.map((s) => ({ numero: s.numero, puntos: S.backlog.filter((i) => Number(i.sprint) === s.numero).reduce((a, i) => a + (Number(i.puntos) || 0), 0), capacidad: s.capacidad }));
+  const prompt = `${REGLAS_SCRUM}\n\n${CONTEXTO}\n\nEQUIPO: ${devs} desarrolladores, velocidad ${vel} puntos por sprint de ${sem} semanas.
+SPRINTS YA EXISTENTES (no los cambies, puedes usar su capacidad libre): ${JSON.stringify(ocupados)}. El siguiente sprint nuevo es el ${ultimo + 1}.
+HISTORIAS FIRMADAS A PLANIFICAR:\n${JSON.stringify(hs.map(({ codigo, titulo, como, quiero, para, criterios, prioridad, notas }) => ({ codigo, titulo, como, quiero, para, criterios, prioridad, notas })))}
+
+Tarea: estima cada historia en puntos Fibonacci (1,2,3,5,8,13; si pasa de 13, divídela en varias con código HU-xx.a, HU-xx.b), desglósala en 2 a 6 tareas técnicas (tipo: backend, frontend, datos, pruebas, devops o diseño; con horas estimadas) y asígnala a sprints respetando prioridad MoSCoW (MUST primero, WONT no se asigna: sprint null) y la velocidad. Cada sprint con un objetivo de una frase.
+Responde SOLO con JSON con esta forma:
+{"backlog":[{"codigo":"HU-01","titulo":"...","prioridad":"MUST","puntos":5,"sprint":1,"tareas":[{"titulo":"...","tipo":"backend","horas":6}]}],
+ "sprints":[{"numero":1,"objetivo":"..."}],
+ "dod":["..."],"riesgos":["..."]}`;
+  S.scrumCtl = new AbortController();
+  $("#btn-planificar").disabled = true; $("#btn-detener-scrum").hidden = false;
+  $("#scrum-estado").textContent = "SCRUM_HANDIHAND está estimando y armando los sprints… (puede tardar un minuto)";
+  try {
+    const plan = await S.sample.json(prompt, { signal: S.scrumCtl.signal, cache: false, modelTier: "default" });
+    if (!plan || !Array.isArray(plan.backlog) || !Array.isArray(plan.sprints)) throw { code: "invalid_json" };
+    const base = S.backlog.length;
+    for (const [k, i] of plan.backlog.entries()) {
+      const codigo = String(i.codigo || `HU-${k}`).replace(/[^\w.\-]/g, "");
+      const it = { codigo, titulo: String(i.titulo || ""), prioridad: prio(i.prioridad), puntos: Number(i.puntos) || 0,
+        sprint: i.sprint == null ? null : Number(i.sprint), orden: base + k,
+        tareas: (Array.isArray(i.tareas) ? i.tareas : []).slice(0, 10).map((t) => ({ titulo: String(t.titulo || ""), tipo: String(t.tipo || "backend"), horas: Number(t.horas) || null, estado: "pendiente" })),
+        origen: hs.find((h) => codigo.startsWith(h.codigo))?.ronda || null, creado: ahora() };
+      await S.db.doc(`backlog/${codigo}`).set(it);
+    }
+    for (const s of plan.sprints) {
+      const n = Number(s.numero);
+      if (!n || S.sprints.some((x) => x.numero === n)) continue;
+      const ini = sumarDias(inicio, (n - ultimo - 1) * sem * 7);
+      await S.db.doc(`sprints/s${String(n).padStart(2, "0")}`).set({ numero: n, objetivo: String(s.objetivo || ""), inicio: ini, fin: sumarDias(ini, sem * 7 - 3), capacidad: vel, semanas: sem });
+    }
+    await S.db.doc("scrum/plan").set({ dod: (plan.dod || []).map(String).slice(0, 12), riesgos: (plan.riesgos || []).map(String).slice(0, 12), actualizado: ahora(), velocidad: vel, devs });
+    for (const r of pend) await S.db.doc(`rondas/${r.id}`).update({ estado: "planificada", planificadaEn: ahora() });
+    for (const h of hs) await S.db.doc(`historias/${h.id}`).update({ estado: "planificada" });
+    $("#scrum-estado").textContent = "Backlog y sprints generados.";
+  } catch (e) {
+    $("#scrum-estado").textContent = e?.code === "cancelled" ? "Planificación detenida." : e?.code === "invalid_json" ? "La respuesta no tuvo el formato esperado. Intente de nuevo." : textoError(e);
+  } finally {
+    S.scrumCtl = null; $("#btn-detener-scrum").hidden = true; renderScrum();
+  }
+}
+
+function herramientasScrum() {
+  const item = (c) => { const it = S.backlog.find((i) => i.codigo === String(c)); if (!it) throw new Error(`No existe ${c} en el backlog`); return it; };
+  return [
+    { name: "mover_historia", description: "Mueve un ítem del backlog a otro sprint por número. Usa sprint 0 para sacarlo de los sprints.",
+      inputSchema: { type: "object", required: ["codigo", "sprint"], properties: { codigo: { type: "string" }, sprint: { type: "integer", description: "Número de sprint; 0 = sin sprint" } } },
+      async execute(i) { const it = item(i.codigo); const sp = Number(i.sprint) > 0 ? Number(i.sprint) : null;
+        if (sp != null && !S.sprints.some((s) => s.numero === sp)) throw new Error(`No existe el sprint ${sp}`);
+        await S.db.doc(`backlog/${it.id}`).update({ sprint: sp }); return { ok: true }; } },
+    { name: "cambiar_puntos", description: "Cambia la estimación en puntos (Fibonacci) de un ítem.",
+      inputSchema: { type: "object", required: ["codigo", "puntos"], properties: { codigo: { type: "string" }, puntos: { type: "integer" } } },
+      async execute(i) { const it = item(i.codigo); await S.db.doc(`backlog/${it.id}`).update({ puntos: Number(i.puntos) || 0 }); return { ok: true }; } },
+    { name: "agregar_tarea", description: "Agrega una tarea técnica a un ítem del backlog.",
+      inputSchema: { type: "object", required: ["codigo", "titulo", "tipo"], properties: { codigo: { type: "string" }, titulo: { type: "string" },
+        tipo: { type: "string", enum: ["backend", "frontend", "datos", "pruebas", "devops", "diseño"] }, horas: { type: "number" } } },
+      async execute(i) { const it = item(i.codigo);
+        await S.db.doc(`backlog/${it.id}`).update({ tareas: [...(it.tareas || []), { titulo: String(i.titulo), tipo: String(i.tipo), horas: Number(i.horas) || null, estado: "pendiente" }] });
+        return { ok: true }; } },
+  ];
+}
+
+async function enviarScrum(ev) {
+  ev.preventDefault();
+  const texto = $("#scrum-entrada").value.trim();
+  if (!texto) return;
+  $("#scrum-entrada").value = "";
+  S.scrumTurnos.push({ role: "user", content: texto });
+  S.scrumTurnos.push({ role: "assistant", content: "Pensando…" });
+  renderScrumChat();
+  const estado = JSON.stringify({ sprints: S.sprints.map(({ numero, objetivo, capacidad }) => ({ numero, objetivo, capacidad })),
+    backlog: S.backlog.map(({ codigo, titulo, prioridad, puntos, sprint, tareas }) => ({ codigo, titulo, prioridad, puntos, sprint, tareas: (tareas || []).map((t) => t.titulo) })) });
+  const reglas = `${REGLAS_SCRUM}\nAyudas al equipo a ajustar el plan con las herramientas disponibles. Responde breve, en español. Si un cambio deja un sprint por encima de su capacidad, adviértelo.\nESTADO ACTUAL: ${estado}`;
+  const turnos = [{ role: "user", content: reglas }, ...S.scrumTurnos.slice(0, -1).slice(-12)];
+  try {
+    const { text } = await S.sample(turnos, { cache: false, effort: "low", tools: herramientasScrum(),
+      onText: ({ text }) => { S.scrumTurnos[S.scrumTurnos.length - 1].content = text; renderScrumChat(); } });
+    S.scrumTurnos[S.scrumTurnos.length - 1].content = text;
+  } catch (e) {
+    S.scrumTurnos[S.scrumTurnos.length - 1].content = e?.text || textoError(e);
+  }
+  renderScrumChat();
+}
+
+// ============================================================================ arranque
+function suscribir() {
+  const err = (e) => aviso(`Se perdió la conexión con los datos (${e.code}). Recargue la página.`, "bad");
+  S.db.collection("rondas").onSnapshot((s) => {
+    S.rondas = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!S.enviando) renderChat();
+    renderHistorias(); renderActa(); renderHistorial(); renderScrum();
+  }, err);
+  S.db.collection("historias").onSnapshot((s) => { S.historias = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderHistorias(); renderScrum(); }, err);
+  S.db.collection("actas").onSnapshot((s) => { S.actas = Object.fromEntries(s.docs.map((d) => [d.id, d.data()])); renderActa(); renderHistorial(); }, err);
+  S.db.collection("firmas").onSnapshot((s) => { S.firmas = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderHistorial(); }, err);
+  S.db.collection("backlog").onSnapshot((s) => { S.backlog = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderScrum(); }, err);
+  S.db.collection("sprints").onSnapshot((s) => { S.sprints = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderScrum(); }, err);
+  S.db.doc("scrum/plan").onSnapshot((d) => { S.planInfo = d.exists ? d.data() : null; renderScrum(); }, err);
+}
+
+async function iniciar() {
+  vista();
+  $("#cfg-ini").value = new Date().toISOString().slice(0, 10);
+  renderPO(); renderScrum();
+  $("#composer").addEventListener("submit", enviarPO);
+  $("#entrada").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); } });
+  $("#detener").addEventListener("click", () => S.ctl?.abort());
+  $("#btn-acta").addEventListener("click", async () => {
+    const r = rondaActual(); if (!r) return;
+    try { await prepararActa(r, ""); } catch (e) { aviso(`No se pudo preparar el acta (${e.code || e.message}).`, "bad"); }
+  });
+  $("#btn-planificar").addEventListener("click", planificar);
+  $("#btn-detener-scrum").addEventListener("click", () => S.scrumCtl?.abort());
+  $("#scrum-composer").addEventListener("submit", enviarScrum);
+
+  const [db, user, sample, downloads] = await Promise.all(["db", "user", "sample", "downloads"].map((n) => window.claude?.use?.(n) ?? Promise.resolve(null)));
+  Object.assign(S, { db, user, sample, downloads });
+  if (!db) { aviso("Para participar necesita abrir este enlace con su cuenta de claude.ai e invitación a la página."); return; }
+  S.uid = user ? await user.id() : null;
+  const puede = user ? await user.can("data.write") : null;
+  S.puedeEscribir = puede !== false;
+  S.esEquipo = user ? await user.canEdit() : false;
+  if (!S.puedeEscribir) aviso("Tiene acceso solo de lectura: puede ver la conversación y las actas, pero no escribir ni firmar. Pida al responsable que le dé permiso de edición.");
+  else if (!sample) aviso("Esta vista no puede usar Claude, así que el Product Owner no puede responder aquí. Ábrala en claude.ai con su cuenta.");
+  else aviso("");
+  suscribir();
+  renderPO(); renderScrum();
+}
+iniciar();
+</script>

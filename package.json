@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "node --test tests/e2e/*.test.mjs"
+    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "test:agentes": "node tests/agentes/flujo.test.mjs"
   },
   "devDependencies": {
     "playwright": "1.56.1"
