@@ -86,5 +86,24 @@ check((await p.locator("#importar-estado").innerText()).includes("Falta la acept
 await p.evaluate(() => { location.hash = "#po"; }); await p.waitForTimeout(300);
 const hist = await p.locator("#historial").textContent();
 check(hist.includes("Juan Mamani") && hist.includes("aceptación escrita en el Claude del cliente"), "historial muestra la aceptación externa");
+// el colaborador (no dueño) no ve SCRUM_HANDIHAND aunque escriba #scrum
+const p2 = await b.newPage();
+await p2.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+await p2.addInitScript({ path: mock });
+await p2.route(/https:\/\/test\.local\//, (r) => r.fulfill({ body: html, contentType: "text/html" }));
+await p2.goto("https://test.local/?colaborador#scrum");
+await p2.waitForTimeout(500);
+check(await p2.locator("#tab-scrum").isHidden() && await p2.locator("#vista-scrum").isHidden(), "colaborador: pestaña y vista SCRUM ocultas");
+check(!(await p2.locator("#vista-po").isHidden()) && p2.url().endsWith("#po"), "colaborador: redirigido al PO");
+check(await p2.locator("#importar").isHidden(), "colaborador: sin importar actas");
+await p2.close();
+const p3 = await b.newPage();
+await p3.addInitScript({ path: mock });
+await p3.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+await p3.route(/https:\/\/test\.local\//, (r) => r.fulfill({ body: html, contentType: "text/html" }));
+await p3.goto("https://test.local/#scrum");
+await p3.waitForTimeout(500);
+check(!(await p3.locator("#vista-scrum").isHidden()) && p3.url().endsWith("#scrum"), "dueño: abre #scrum directo sin redirección");
+await p3.close();
 check(errs.length === 0, `sin errores JS ${JSON.stringify(errs)}`);
 await b.close();

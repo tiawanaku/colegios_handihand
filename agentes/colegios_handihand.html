@@ -140,7 +140,7 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
     </div>
     <nav class="views" aria-label="Agentes">
       <a href="#po" id="tab-po">COLEGIOS_HANDIHAND · PO</a>
-      <a href="#scrum" id="tab-scrum" class="scrum-tab">SCRUM_HANDIHAND</a>
+      <a href="#scrum" id="tab-scrum" class="scrum-tab" hidden>SCRUM_HANDIHAND</a>
     </nav>
   </div>
 </header>
@@ -355,7 +355,11 @@ function firmaDe(rid) {
 
 // ============================================================================ vistas (#po / #scrum)
 function vista() {
-  const scrum = location.hash === "#scrum";
+  // SCRUM_HANDIHAND solo existe para el dueño de la página; el colaborador solo ve al PO
+  // mientras no se sabe quién mira, se muestra el PO sin tocar la URL
+  if (location.hash === "#scrum" && !S.esEquipo && S.identidadLista) history.replaceState(null, "", "#po");
+  const scrum = location.hash === "#scrum" && S.esEquipo;
+  $("#tab-scrum").hidden = !S.esEquipo;
   $("#vista-po").hidden = scrum;
   $("#vista-scrum").hidden = !scrum;
   for (const [el, activo] of [[$("#tab-po"), !scrum], [$("#tab-scrum"), scrum]]) {
@@ -718,7 +722,7 @@ function renderScrum() {
        <div class="historias">${hs.map(huCard).join("")}</div>`
     : `<div class="empty">No hay historias nuevas. Cuando el cliente firme un acta con COLEGIOS_HANDIHAND, sus historias aparecerán aquí.</div>`;
   $("#btn-planificar").disabled = !hs.length || !S.sample || !S.esEquipo;
-  $("#scrum-estado").textContent = !S.esEquipo ? "Solo el equipo (editores de la página) puede planificar." : "";
+  $("#scrum-estado").textContent = !S.esEquipo ? "Solo el dueño de la página puede planificar." : "";
 
   const items = [...S.backlog].sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
   const total = items.reduce((s, i) => s + (Number(i.puntos) || 0), 0);
@@ -946,12 +950,14 @@ async function iniciar() {
   const [db, user, sample, downloads] = await Promise.all(["db", "user", "sample", "downloads"].map((n) => window.claude?.use?.(n) ?? Promise.resolve(null)));
   Object.assign(S, { db, user, sample, downloads });
   $("#importar").hidden = true;
-  if (!db) { aviso("Esta página no puede guardar datos para su cuenta. Use la opción “Use al PO en su propio Claude” de abajo."); $("#plan-b").open = true; return; }
+  if (!db) { S.identidadLista = true; vista(); aviso("Esta página no puede guardar datos para su cuenta. Use la opción “Use al PO en su propio Claude” de abajo."); $("#plan-b").open = true; return; }
   S.uid = user ? await user.id() : null;
   const puede = user ? await user.can("data.write") : null;
   S.puedeEscribir = puede !== false;
-  S.esEquipo = user ? await user.canEdit() : false;
+  S.esEquipo = user ? await user.isOwner() : false;
+  S.identidadLista = true;
   $("#importar").hidden = !S.esEquipo;
+  vista();
   if (!S.puedeEscribir || !sample) $("#plan-b").open = true;
   if (!S.puedeEscribir) aviso("Su acceso a esta página es solo de lectura, así que no puede conversar ni firmar aquí. Use la opción “Use al PO en su propio Claude” de abajo.");
   else if (!sample) aviso("Esta vista no puede usar Claude, así que el Product Owner no puede responder aquí. Use la opción “Use al PO en su propio Claude” de abajo.");

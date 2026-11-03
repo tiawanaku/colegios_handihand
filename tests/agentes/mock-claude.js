@@ -27,7 +27,8 @@
   };
   sample.json = async () => ({ backlog: [{ codigo: "HU-01", titulo: "Ver matrícula por colegio", prioridad: "MUST", puntos: 8, sprint: 1, tareas: [{ titulo: "Importar matrícula del SIE", tipo: "datos", horas: 10 }, { titulo: "Mostrar matrícula en la ficha", tipo: "frontend", horas: 4 }] }],
     sprints: [{ numero: 1, objetivo: "Matrícula visible en el dashboard" }, { numero: 2, objetivo: "Reportes" }], dod: ["Pruebas pasan"], riesgos: ["Acceso al SIE"] });
-  const user = { id: async () => "u_cliente", can: async () => true, canEdit: async () => true, isOwner: async () => true, profiles: async (ids) => Object.fromEntries([].concat(ids).map((i) => [i, { id: i, name: "Cliente Prueba" }])) };
+  const comoColaborador = location.search.includes("colaborador");
+  const user = { id: async () => "u_cliente", can: async () => true, canEdit: async () => true, isOwner: async () => !comoColaborador, profiles: async (ids) => Object.fromEntries([].concat(ids).map((i) => [i, { id: i, name: "Cliente Prueba" }])) };
   const downloads = { save: async (r) => { window.__descarga = r.filename; return { status: "saved" }; } };
   const caps = { db, sample, user, downloads };
   window.claude = { use: (n) => new Promise((ok) => setTimeout(() => ok(caps[n] ?? null), 50)) };

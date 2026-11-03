@@ -5,7 +5,7 @@ Página publicada: https://claude.ai/artifact/6sdwXjEQyhYAA4wmhhkmAn · fuente: 
 | Vista | Para quién | Qué hace |
 |---|---|---|
 | `#po`: **COLEGIOS_HANDIHAND** | Cliente | Conversa como Product Owner; registra historias de usuario (Como / quiero / para, criterios de aceptación, prioridad MoSCoW); arma el acta y recoge la firma |
-| `#scrum`: **SCRUM_HANDIHAND** | Equipo (editores) | Recibe solo historias de actas firmadas; estima en puntos Fibonacci, desglosa tareas, arma sprints según velocidad, DoD y riesgos; acepta ajustes por chat; marca tareas hechas |
+| `#scrum`: **SCRUM_HANDIHAND** | Solo el dueño de la página (oculta para colaboradores) | Recibe solo historias de actas firmadas; estima en puntos Fibonacci, desglosa tareas, arma sprints según velocidad, DoD y riesgos; acepta ajustes por chat; marca tareas hechas |
 
 ## Flujo
 
@@ -25,7 +25,7 @@ Cliente ⇄ PO (ronda N: conversación + historias)
 | `historias/HU-xx` | historias y su estado | participantes |
 | `actas/rNNN` | contenido del acta y `hash` | participantes |
 | `firmas/<id de cuenta>` | firma por acta: nombre, CI, trazo, hash y fecha | **solo el propio firmante** (regla `self`: ni el dueño puede alterarla) |
-| `backlog/*`, `sprints/*`, `scrum/plan` | plan del equipo | solo editores y dueño |
+| `backlog/*`, `sprints/*`, `scrum/plan` | plan del equipo | **solo el dueño** lee y escribe (`read/write: owner`) |
 
 **Integridad:** al firmar se guarda la huella SHA-256 del acta. Si alguien cambia el acta después, el historial muestra "modificada después de la firma".
 
@@ -35,7 +35,7 @@ Cliente ⇄ PO (ronda N: conversación + historias)
 2. Enviarle el enlace con la vista del PO: `https://claude.ai/artifact/6sdwXjEQyhYAA4wmhhkmAn#po`
 3. El cliente necesita una cuenta de claude.ai. Cada mensaje al agente usa **su** cuota de Claude, y la primera vez se le pide permiso.
 
-Limitación: como Editor, el cliente también puede abrir la vista `#scrum`. Para separarlo del todo haría falta una lista de miembros del equipo o dos páginas distintas.
+El colaborador solo ve a COLEGIOS_HANDIHAND: la pestaña SCRUM no aparece, `#scrum` lo devuelve a `#po` y las reglas de datos le impiden leer o escribir backlog y sprints, aunque tenga rol Editor.
 
 ## Si el cliente no puede usar la página (plan B)
 
@@ -48,4 +48,4 @@ Limitación: como Editor, el cliente también puede abrir la vista `#scrum`. Par
 
 ## Pruebas
 
-`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (27 comprobaciones, incluido el plan B): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
+`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (31 comprobaciones, incluidos el plan B y la vista del colaborador): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
