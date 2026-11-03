@@ -129,9 +129,15 @@ Para la BD de cuidados (Django), ver `docs/05-bd-cuidados.md` y `db/vista_unidad
 6. **Accesibilidad**: filas navegables con teclado (Tab + Enter), encabezados ordenables con `aria-sort` y el diálogo de detalle con `aria-labelledby`.
 7. **Mapa con `preferCanvas`**: aguanta miles de marcadores.
 
-## Bajas y altas en la página estática
+## Registro y bajas en la página estática
 
-En la página publicada en claude.ai, `static-estado.js` guarda las bajas en la base compartida del artifact (capacidad `db`: colecciones `bajas/<id>` e `historial`). Aplica las mismas reglas que el backend (`confirmar: true`, motivo obligatorio, 404 y 409) y todos los visitantes actúan como encargados. Los cambios de otros visitantes llegan en vivo. Fuera de claude.ai (archivo suelto u otro hosting) no hay base y la página es de solo consulta.
+La página generada con `app/build_static.py` responde la API en el navegador con `static-api.js`. En claude.ai, `static-estado.js` guarda los cambios en la base compartida del artifact (capacidad `db`), y todos los visitantes ven lo mismo en vivo vía `onSnapshot`:
+
+- **Bajas:** `bajas/<id>`.
+- **Registros:** cada colegio nuevo se guarda en `registros/<id>` como `{unidad, usuario, fecha}`. El id es un número ≥ 1.000.000 basado en `Date.now()`, para que dos visitantes no choquen.
+- **Historial:** cada baja, alta o registro agrega una entrada en `historial`.
+
+`POST unidades` aplica las mismas reglas y mensajes que `POST /api/unidades`: usa `validarRegistro` de `app.js` y la misma normalización que el backend. Los registros se mezclan con las filas embebidas en unidades, geojson, estadísticas, catálogos, ficha (`registrado: true` y `registro: {usuario, fecha}`) y bajas, y `catalogos.opciones_registro` es idéntico al del backend (lo verifica `tests/e2e/static.test.mjs`). Los documentos de otros visitantes se sanean antes de usarse: solo campos conocidos con el tipo correcto e ids ≥ 1.000.000 que no estén en los datos. Sin base (archivo suelto u otro hosting), la página es de solo consulta: no hay sección de bajas, y el Registro avisa que solo funciona con servidor o en claude.ai, sin botón Guardar.
 
 ## Despliegue
 
