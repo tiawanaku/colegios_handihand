@@ -230,3 +230,33 @@ test("HU-04: el formulario funciona en celular, sin scroll horizontal, en tema c
     await page.context().close();
   }
 });
+
+test("HU-04: la validación del navegador da los mismos errores y mensajes que el servidor", async () => {
+  const page = await open();
+  const valido = { nombre: "U.E. Paridad", dependencia: "FISCAL", subsistema: "REGULAR", distrito_municipal: 3, direccion: "Calle 1",
+    zona: null, telefono: null, niveles: ["PRIMARIA"], turnos: ["MAÑANA"], lat: -16.5, lon: -68.2 };
+  const casos = [
+    {}, [], "texto", { ...valido, nombre: "  " }, { ...valido, nombre: 5 }, { ...valido, nombre: "x".repeat(201) },
+    { ...valido, direccion: "y".repeat(256) }, { ...valido, zona: "z".repeat(201) }, { ...valido, telefono: "1".repeat(51) }, { ...valido, telefono: 70000000 },
+    { ...valido, dependencia: "COMUNITARIA" }, { ...valido, dependencia: null }, { ...valido, subsistema: "OTRO" }, { ...valido, subsistema: "" },
+    { ...valido, distrito_municipal: "3" }, { ...valido, distrito_municipal: 15 }, { ...valido, distrito_municipal: 0 }, { ...valido, distrito_municipal: true },
+    { ...valido, niveles: [] }, { ...valido, niveles: "PRIMARIA" }, { ...valido, niveles: ["A,B"] }, { ...valido, niveles: [" "] }, { ...valido, niveles: ["n".repeat(101)] },
+    { ...valido, turnos: [] }, { ...valido, turnos: ["SIESTA"] }, { ...valido, turnos: [1] },
+    { ...valido, lat: null }, { ...valido, lat: "-16.5" }, { ...valido, lon: -68.36 }, { ...valido, lat: -16.39, lon: -68.04 },
+    { ...valido, nombre: "", niveles: [], turnos: [], lat: -17 },
+  ];
+  const op = (await api("catalogos")).opciones_registro;
+  for (const caso of casos) {
+    const r = await fetch(`${BASE}/api/unidades`, { method: "POST", headers: { cookie, "Content-Type": "application/json" }, body: JSON.stringify(caso) });
+    assert.equal(r.status, 422, JSON.stringify(caso).slice(0, 80));
+    const servidor = (await r.json()).errores;
+    const navegador = await page.evaluate(([b, op]) => validarRegistro(b, op), [caso, op]);
+    assert.deepEqual(navegador, servidor, JSON.stringify(caso).slice(0, 80));
+  }
+  // en minúsculas y en los extremos del área también es válido en ambos lados
+  const extremo = { ...valido, dependencia: "privada", subsistema: "especial", turnos: ["tarde", "TARDE"], lat: -16.65, lon: -68.05 };
+  assert.deepEqual(await page.evaluate(([b, op]) => validarRegistro(b, op), [extremo, op]), {});
+  const r = await fetch(`${BASE}/api/unidades`, { method: "POST", headers: { cookie, "Content-Type": "application/json" }, body: JSON.stringify(extremo) });
+  assert.equal(r.status, 201);
+  await page.context().close();
+});

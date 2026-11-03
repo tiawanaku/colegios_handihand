@@ -135,3 +135,96 @@ test("en claude.ai (con base compartida) cualquier visitante da de baja y de alt
   assert.deepEqual(p2.errors, []);
   await p2.close();
 });
+
+test("HU-04: sin base compartida (archivo suelto) el Registro avisa que no puede guardar y no muestra Guardar", async () => {
+  await page.click("#nav a[data-vista=registro]");
+  await page.locator("#registro-estado").waitFor({ state: "visible" });
+  assert.match(await page.locator("#registro-estado").innerText(), /sólo funciona en la versión con servidor o en la página publicada en claude\.ai/);
+  assert.ok(await page.locator("#r-guardar").isHidden(), "sin botón Guardar");
+  assert.equal((await local("catalogos")).opciones_registro.distritos.length, 14);
+  await page.click("#nav a[data-vista=dashboard]");
+  assert.deepEqual(page.errors, []);
+});
+
+test("HU-04: en claude.ai se registra un colegio en la base compartida, con las mismas validaciones, y aparece en todo", async () => {
+  const p3 = await browser.newPage();
+  p3.errors = [];
+  p3.on("pageerror", (e) => p3.errors.push(e.message));
+  await p3.addInitScript({ path: path.join(ROOT, "tests/agentes/mock-claude.js") });
+  await p3.route(/openstreetmap\.org|cartocdn\.com/, (r) => r.abort());
+  const vendor = path.join(ROOT, "app/frontend/vendor");
+  await p3.route(/leaflet@1\.9\.4\/dist\/leaflet\.js$/, (r) => r.fulfill({ path: path.join(vendor, "leaflet/leaflet.js"), contentType: "text/javascript" }));
+  await p3.route(/chart\.js@4\.4\.1\/dist\/chart\.umd\.js$/, (r) => r.fulfill({ path: path.join(vendor, "chart.umd.js"), contentType: "text/javascript" }));
+  await p3.goto(`file://${html}`);
+  const ocupada = () => p3.waitForFunction(() => document.querySelector(".content").getAttribute("aria-busy") === "false");
+  await p3.locator("#bajas").waitFor({ state: "visible" });
+  await ocupada();
+  const kpi = async () => Number((await p3.locator(".kpi b").first().innerText()).replace(/\D/g, ""));
+  const total = await kpi();
+  const registros = () => p3.evaluate(() => [...window.__store].filter(([k]) => k.startsWith("registros/")));
+  await p3.click("#nav a[data-vista=registro]");
+  await p3.locator("#form-registro").waitFor({ state: "visible" });
+  // errores de cliente: nada se guarda
+  await p3.fill("#r-nombre", "U.E. Artifact E2E");
+  await p3.fill("#r-lat", "-16.2");
+  await p3.fill("#r-lon", "-68.2");
+  await p3.click("#r-guardar");
+  assert.equal(await p3.locator("#r-niveles-error").innerText(), "Elija al menos un nivel");
+  assert.equal(await p3.locator("#r-lat-error").innerText(), "La ubicación está fuera del área de la ciudad");
+  assert.deepEqual(await registros(), []);
+  // la misma regla en la "API" del artifact, aunque alguien salte el formulario
+  const rechazo = await p3.evaluate(() => CONFIG.staticEstado.post("unidades", { nombre: "x" }).catch((e) => ({ status: e.status, errores: e.errores })));
+  assert.equal(rechazo.status, 422);
+  assert.equal(rechazo.errores.turnos, "Elija al menos un turno");
+  // alta válida
+  await p3.selectOption("#r-dependencia", "PRIVADA");
+  await p3.selectOption("#r-distrito_municipal", "4");
+  await p3.fill("#r-direccion", "Calle Artifact 9");
+  await p3.locator("#r-niveles label", { hasText: "Secundaria" }).first().click();
+  await p3.locator("#r-turnos label", { hasText: "Tarde" }).click();
+  await p3.fill("#r-lat", "-16.53"); // el mapa siguió a la ubicación anterior, fuera del área
+  await p3.fill("#r-lon", "-68.21");
+  await p3.click("#r-guardar");
+  await p3.locator("#registro-ok").waitFor({ state: "visible" });
+  await ocupada();
+  const guardados = await registros();
+  assert.equal(guardados.length, 1, "un registro en la colección registros");
+  const [clave, doc] = guardados[0];
+  const id = Number(clave.split("/")[1]);
+  assert.ok(id >= 1_000_000);
+  assert.equal(doc.unidad.turnos, "TARDE");
+  assert.equal(doc.usuario, "u_cliente");
+  await p3.click("#registro-ok [data-ver]");
+  await p3.locator("#detalle[open]").waitFor();
+  assert.equal(await p3.locator("#detalle-titulo").innerText(), "U.E. Artifact E2E");
+  assert.match(await p3.locator("#detalle-body").innerText(), /Registrado en este sistema/);
+  await p3.keyboard.press("Escape");
+  await p3.click("#nav a[data-vista=dashboard]");
+  assert.equal(await kpi(), total + 1, "KPI total sube en 1");
+  assert.ok(await p3.evaluate((id) => ultimoGeojson.features.some((f) => f.properties.id === id), id), "en el mapa");
+  await p3.fill("#q", "Artifact E2E");
+  await p3.waitForTimeout(400);
+  await ocupada();
+  assert.match(await p3.locator("#tabla tbody").innerText(), /U\.E\. Artifact E2E/);
+  // otro visitante registra (llega por onSnapshot) y aparece sin recargar
+  await p3.evaluate(() => window.claude.use("db").then((db) => db.doc("registros/1000123").set({
+    unidad: { nombre: "U.E. Artifact Vecino", dependencia: "FISCAL", subsistema: "REGULAR", distrito_municipal: 2, direccion: "Calle 2",
+      niveles: "PRIMARIA", turnos: "MAÑANA", lat: -16.5, lon: -68.2 }, usuario: "otro", fecha: "2026-11-20T10:00:00Z" })));
+  await p3.fill("#q", "Artifact");
+  await p3.locator("#tabla tbody tr", { hasText: "Artifact Vecino" }).waitFor();
+  assert.equal(await p3.locator("#tabla tbody tr").count(), 2);
+  // la ficha del artifact tiene la misma forma que la del backend para los mismos datos
+  const body = { nombre: "U.E. Paridad", dependencia: "fiscal", subsistema: "regular", distrito_municipal: 5, direccion: " Calle 5 ",
+    zona: "", telefono: null, niveles: ["PRIMARIA", "PRIMARIA"], turnos: ["NOCHE", "mañana"], lat: -16.5, lon: -68.2, extra: 1 };
+  const estatico = await p3.evaluate((b) => CONFIG.staticEstado.post("unidades", b), body);
+  const r = await fetch(`${BASE}/api/unidades`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal(r.status, 201);
+  const servidor = await r.json();
+  const comparable = (u) => Object.fromEntries(Object.entries(u).filter(([k, v]) => v != null && !["id", "clave", "actualizado"].includes(k))
+    .map(([k, v]) => [k, k === "registro" ? Object.keys(v).sort() : v]));
+  assert.deepEqual(comparable(estatico.unidad), comparable(servidor.unidad));
+  await assert.rejects(local(`unidades/${estatico.id}`), /HTTP 404/, "la página sin base no conoce los registros del artifact");
+  assert.deepEqual(comparable(await p3.evaluate((id) => CONFIG.staticApi(`unidades/${id}`), estatico.id)), comparable(servidor.unidad));
+  assert.deepEqual(p3.errors, []);
+  await p3.close();
+});
