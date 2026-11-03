@@ -3,7 +3,11 @@
 // (GitHub Pages, un artifact, un USB) sin servidor:
 //   window.COLEGIOS_CONFIG = { staticApi: createStaticApi(filas) };
 // Las exportaciones CSV/XLSX/PDF necesitan el backend y no existen en este modo.
-function createStaticApi(rows) {
+function createStaticApi(todas) {
+  // Colegios dados de baja (id → {fecha, motivo, usuario}); los carga static-estado.js cuando hay dónde
+  // guardarlos. Igual que el backend: no salen en listados, mapa, estadísticas ni catálogos.
+  let bajas = new Map();
+  let rows = todas;
   const lista = (csv) => (csv ? String(csv).split(",").filter(Boolean) : []);
   const up = (v) => String(v).toUpperCase();
   const sinDato = (v) => (v == null || v === "" ? "SIN DATO" : v);
@@ -82,7 +86,7 @@ function createStaticApi(rows) {
     return { count: sel.length, page, page_size: size, results: sel.slice((page - 1) * size, page * size) };
   }
 
-  return function staticApi(path, params) {
+  function staticApi(path, params) {
     const p = new URLSearchParams(params ?? "");
     if (path === "catalogos") return catalogos();
     if (path === "estadisticas") return estadisticas(filtrar(p));
@@ -94,12 +98,20 @@ function createStaticApi(rows) {
         properties: { id: r.id, nombre: r.nombre, dependencia: r.dependencia, distrito: r.distrito_municipal, niveles: r.niveles },
       })),
     };
+    if (path === "bajas") return todas.filter((r) => bajas.has(r.id))
+      .map((r) => ({ id: r.id, nombre: r.nombre, distrito_municipal: r.distrito_municipal ?? null, dependencia: r.dependencia ?? null,
+        fecha_baja: bajas.get(r.id).fecha, motivo: bajas.get(r.id).motivo, usuario: bajas.get(r.id).usuario }))
+      .sort((a, b) => String(b.fecha_baja).localeCompare(String(a.fecha_baja)));
     const m = /^unidades\/(.+)$/.exec(path);
     if (m) {
-      const r = rows.find((x) => String(x.id) === decodeURIComponent(m[1]));
+      const r = todas.find((x) => String(x.id) === decodeURIComponent(m[1]));
       if (!r) throw new Error(`${path}: HTTP 404`);
-      return r;
+      return bajas.has(r.id) ? { ...r, baja: bajas.get(r.id) } : r;
     }
     throw new Error(`${path}: HTTP 404`);
-  };
+  }
+  staticApi.existe = (id) => todas.some((r) => r.id === id);
+  staticApi.estaDeBaja = (id) => bajas.has(id);
+  staticApi.setBajas = (mapa) => { bajas = new Map(mapa); rows = todas.filter((r) => !bajas.has(r.id)); };
+  return staticApi;
 }

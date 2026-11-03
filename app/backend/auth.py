@@ -78,6 +78,16 @@ auth_engine = create_engine(
 ROLES = ("consulta", "encargado")
 
 
+def todos_encargados() -> bool:
+    """Interruptor temporal: mientras COLEGIOS_TODOS_ENCARGADOS no sea "0", todo usuario con sesión actúa
+    como encargado (decisión del cliente para esta etapa). Con "0" rige el rol guardado de cada usuario."""
+    return os.environ.get("COLEGIOS_TODOS_ENCARGADOS", "1") != "0"
+
+
+def rol_de(u: "Usuario") -> str:
+    return "encargado" if todos_encargados() else u.rol
+
+
 def respaldar(engine: Engine) -> Path | None:
     """Copia el archivo SQLite a <archivo>.bak-<fecha> antes de alterar una tabla existente.
     En PostgreSQL el respaldo (pg_dump) es responsabilidad del despliegue."""

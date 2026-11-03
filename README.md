@@ -61,6 +61,7 @@ el archivo SQLite se respalda antes en `<archivo>.bak-<fecha>` (en PostgreSQL, h
 | `COLEGIOS_SECRET` | Clave para firmar sesiones. **Defínela en producción**: sin ella se genera una al arrancar y las sesiones se pierden al reiniciar (y no sirven con varios workers). |
 | `COLEGIOS_AUTH_DB` | URL de la BD de usuarios (p. ej. `sqlite:////datos/usuarios.db`). |
 | `COLEGIOS_AUTH=0` | Desactiva el login (sólo desarrollo). |
+| `COLEGIOS_TODOS_ENCARGADOS` | Por defecto `1`: **todo usuario con sesión actúa como encargado** (decisión del cliente para esta etapa). Con `0` rige el rol guardado de cada usuario (`python -m app.backend.auth rol <u> encargado\|consulta`). |
 
 La página estática (`app.build_static`) no tiene login: quien tenga el archivo ve los datos incrustados.
 

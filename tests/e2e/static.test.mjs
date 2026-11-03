@@ -100,3 +100,38 @@ test("la página generada no muestra acciones de encargado (sin sesión ni bajas
   await page.keyboard.press("Escape");
   assert.deepEqual(page.errors, []);
 });
+
+test("en claude.ai (con base compartida) cualquier visitante da de baja y de alta, y se guarda en la base", async () => {
+  const p2 = await browser.newPage();
+  p2.errors = [];
+  p2.on("pageerror", (e) => p2.errors.push(e.message));
+  await p2.addInitScript({ path: path.join(ROOT, "tests/agentes/mock-claude.js") }); // window.claude con db en memoria
+  await p2.route(/openstreetmap\.org|cartocdn\.com/, (r) => r.abort());
+  const vendor = path.join(ROOT, "app/frontend/vendor");
+  await p2.route(/leaflet@1\.9\.4\/dist\/leaflet\.js$/, (r) => r.fulfill({ path: path.join(vendor, "leaflet/leaflet.js"), contentType: "text/javascript" }));
+  await p2.route(/chart\.js@4\.4\.1\/dist\/chart\.umd\.js$/, (r) => r.fulfill({ path: path.join(vendor, "chart.umd.js"), contentType: "text/javascript" }));
+  await p2.goto(`file://${html}`);
+  const ocupada = () => p2.waitForFunction(() => document.querySelector(".content").getAttribute("aria-busy") === "false");
+  await p2.locator("#bajas").waitFor({ state: "visible" });
+  await ocupada();
+  const total = Number((await p2.locator(".kpi b").first().innerText()).replace(/\D/g, ""));
+  const nombre = await p2.locator("#tabla tbody tr td").first().innerText();
+  await p2.locator("#tabla tbody tr").first().click();
+  await p2.click("#detalle [data-accion=baja]");
+  await p2.fill("#detalle-motivo", "Cerró sus puertas");
+  await p2.click("text=Confirmar baja");
+  await p2.locator("#detalle").waitFor({ state: "hidden" });
+  await ocupada();
+  assert.equal(Number((await p2.locator(".kpi b").first().innerText()).replace(/\D/g, "")), total - 1, "KPI total baja en 1");
+  assert.ok(!(await p2.locator("#tabla tbody").innerText()).includes(nombre), "sale del listado");
+  assert.ok((await p2.locator("#tabla-bajas").innerText()).includes(nombre), "aparece en dados de baja");
+  const guardado = await p2.evaluate(() => [...window.__store].filter(([k]) => k.startsWith("bajas/") || k.startsWith("historial/")).map(([k, v]) => [k.split("/")[0], v.motivo ?? v.accion]));
+  assert.deepEqual(guardado.map((g) => g[0]).sort(), ["bajas", "historial"], "baja e historial en la base compartida");
+  await p2.locator("#tabla-bajas tbody tr", { hasText: nombre }).locator("[data-alta]").click();
+  await p2.click("text=Confirmar alta");
+  await p2.locator("#aviso").waitFor({ state: "visible" });
+  await ocupada();
+  assert.equal(Number((await p2.locator(".kpi b").first().innerText()).replace(/\D/g, "")), total, "el alta lo restituye");
+  assert.deepEqual(p2.errors, []);
+  await p2.close();
+});

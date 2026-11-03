@@ -374,7 +374,18 @@ def test_alta_exige_confirmacion_404_y_409(client):
     assert client.get("/api/unidades/999999/historial").status_code == 404
 
 
-def test_endpoints_de_encargado_exigen_sesion_y_rol(client):
+def test_por_ahora_todos_son_encargados(client):
+    # decisión del cliente: mientras COLEGIOS_TODOS_ENCARGADOS no sea "0", todo usuario con sesión es encargado
+    ue = una_unidad(client)
+    assert client.get("/api/auth/sesion").json()["rol"] == "encargado"   # el usuario del fixture tiene rol consulta
+    assert client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "cerró", "confirmar": True}).status_code == 200
+    assert client.post(f"/api/unidades/{ue['id']}/alta", json={"confirmar": True}).status_code == 200
+    client.post("/api/auth/logout")
+    assert client.get("/api/bajas").status_code == 401                    # la sesión sigue siendo obligatoria
+
+
+def test_endpoints_de_encargado_exigen_sesion_y_rol(client, monkeypatch):
+    monkeypatch.setenv("COLEGIOS_TODOS_ENCARGADOS", "0")   # roles por usuario (etapa posterior)
     ue = una_unidad(client)
     url = f"/api/unidades/{ue['id']}"
     llamadas = [("post", f"{url}/baja", {"motivo": "x", "confirmar": True}), ("post", f"{url}/alta", {"confirmar": True}),

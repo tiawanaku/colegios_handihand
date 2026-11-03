@@ -158,6 +158,8 @@ test("un error al dar de baja se muestra en el diálogo sin cerrarlo", async () 
 test("dar de alta (con confirmación) lo restituye en indicadores, mapa y listado", async () => {
   const page = await open("", { viewport: { width: 390, height: 844 } }); // también en celular
   const fila = page.locator("#tabla-bajas tbody tr", { hasText: elegido.nombre });
+  await fila.waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "sin scroll horizontal con la sección de bajas a 390 px");
   await fila.locator("[data-alta]").click();
   const paso = page.locator("#bajas-confirmar");
   await paso.waitFor({ state: "visible" });

@@ -75,7 +75,7 @@ def login(datos: Credenciales, request: Request):
         auth.registrar_fallo(ip)
         raise HTTPException(401, "Usuario o contraseña incorrectos")
     auth.limpiar_fallos(ip)
-    resp = JSONResponse({"usuario": u.usuario, "nombre": u.nombre, "rol": u.rol})
+    resp = JSONResponse({"usuario": u.usuario, "nombre": u.nombre, "rol": auth.rol_de(u)})
     resp.set_cookie(auth.COOKIE, auth.crear_token(u), max_age=auth.DURACION, httponly=True,
                     samesite="lax", secure=request.url.scheme == "https", path="/")
     return resp
@@ -95,7 +95,7 @@ def sesion(request: Request):
     if not auth.AUTH_ENABLED:
         return {"requerida": False, "usuario": None, "nombre": None, "rol": "encargado"}
     u = auth.leer_token(request.cookies.get(auth.COOKIE))
-    return {"requerida": True, "usuario": u and u.usuario, "nombre": u and u.nombre, "rol": u and u.rol}
+    return {"requerida": True, "usuario": u and u.usuario, "nombre": u and u.nombre, "rol": u and auth.rol_de(u)}
 
 
 def exigir_encargado(request: Request) -> str:
@@ -105,7 +105,7 @@ def exigir_encargado(request: Request) -> str:
     u = getattr(request.state, "usuario", None)
     if u is None:
         raise HTTPException(401, "Sesión requerida")
-    if u.rol != "encargado":
+    if auth.rol_de(u) != "encargado":
         raise HTTPException(403, "Se requiere el rol de encargado")
     return u.usuario
 

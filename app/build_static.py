@@ -56,9 +56,10 @@ def build(fragment: bool, tiles: bool = True) -> str:
         body.strip(),
         f'<script src="{LEAFLET_JS}"></script>',
         f'<script src="{CHART_JS}"></script>',
-        f"<script>\n{(FRONT / 'static-api.js').read_text(encoding='utf-8')}\n"
+        f"<script>\n{(FRONT / 'static-api.js').read_text(encoding='utf-8')}\n{(FRONT / 'static-estado.js').read_text(encoding='utf-8')}\n"
         f"const FILAS = {script_json(filas())};\n"
-        f"window.COLEGIOS_CONFIG = Object.assign({json.dumps(config)}, {{ staticApi: createStaticApi(FILAS) }});\n</script>",
+        "const API = createStaticApi(FILAS);\n"
+        f"window.COLEGIOS_CONFIG = Object.assign({json.dumps(config)}, {{ staticApi: API, staticEstado: crearEstadoArtifact(API) }});\n</script>",
         f"<script>\n{(FRONT / 'app.js').read_text(encoding='utf-8')}\n</script>",
     ]
     contenido = "\n".join(partes)

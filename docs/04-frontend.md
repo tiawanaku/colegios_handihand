@@ -81,6 +81,10 @@ Para la BD de cuidados (Django), ver `docs/05-bd-cuidados.md` y `db/vista_unidad
 6. **Accesibilidad**: filas navegables con teclado (Tab + Enter), encabezados ordenables con `aria-sort` y el diálogo de detalle con `aria-labelledby`.
 7. **Mapa con `preferCanvas`**: aguanta miles de marcadores.
 
+## Bajas y altas en la página estática
+
+En la página publicada en claude.ai, `static-estado.js` guarda las bajas en la base compartida del artifact (capacidad `db`: colecciones `bajas/<id>` e `historial`). Aplica las mismas reglas que el backend (`confirmar: true`, motivo obligatorio, 404 y 409) y todos los visitantes actúan como encargados. Los cambios de otros visitantes llegan en vivo. Fuera de claude.ai (archivo suelto u otro hosting) no hay base y la página es de solo consulta.
+
 ## Despliegue
 
 | Modo | Cómo | Notas |

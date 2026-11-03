@@ -53,7 +53,7 @@ button { cursor: pointer; border: 1px solid var(--line); background: var(--bg); 
 .rotulo-distrito { font: 700 11px/16px system-ui, sans-serif; color: var(--text); text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: 999px; opacity: .92; pointer-events: none; }
 .legend { display: flex; gap: 12px; margin-top: 6px; color: var(--muted); flex-wrap: wrap; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; position: relative; } /* que .sr-only (absoluto) no escape del desplazamiento */
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th[data-orden] button { all: unset; cursor: pointer; font-weight: 700; text-decoration: underline dotted; }

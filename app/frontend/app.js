@@ -383,6 +383,8 @@ function pasoConfirmacion(tipo, nombre, pre) {
 }
 
 async function post(path, body) {
+  // página estática en claude.ai: las bajas se guardan en la base compartida del artifact
+  if (CONFIG.staticEstado) return CONFIG.staticEstado.post(path, body);
   let r;
   try {
     r = await fetch(`${CONFIG.apiBase}/${path}`, {
@@ -544,7 +546,22 @@ const irAlLogin = () => location.replace("login.html");
 let esEncargado = false;
 
 async function initSesion() {
-  if (CONFIG.staticApi) return;
+  if (CONFIG.staticApi) {
+    // sin servidor no hay login; si la página tiene dónde guardar (claude.ai), todos actúan como encargados
+    if (!CONFIG.staticEstado || !(await CONFIG.staticEstado.disponible())) return;
+    esEncargado = true;
+    $("#bajas").hidden = false;
+    loadBajas();
+    // la primera carga pudo hacerse antes de conocer las bajas: se vuelve a dibujar sin perder página ni filtros
+    if (CONFIG.staticApi("bajas").length) {
+      await loadCatalogos().catch(showError);
+      syncInputs();
+      await Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
+    }
+    // cambios de otros visitantes: se recargan indicadores, mapa, listado y la sección de bajas
+    window.addEventListener("colegios:bajas", () => { refresh(); loadBajas(); });
+    return;
+  }
   setBusy(+1); // la sección de bajas depende del rol: la página no está lista hasta saberlo
   const s = await fetch(`${CONFIG.apiBase}/auth/sesion`).then((r) => r.json()).catch(() => null);
   setBusy(-1);

@@ -11,6 +11,7 @@
     delete: async () => { store.delete(p); notify(); },
     onSnapshot: (next) => { const f = () => next(snapDoc(p)); subs.add(f); f(); return () => subs.delete(f); } });
   const colRef = (c) => ({ path: c, doc: (id) => docRef(`${c}/${id || Math.random().toString(36).slice(2)}`),
+    add: async (d) => { const r = docRef(`${c}/${Math.random().toString(36).slice(2)}`); await r.set(d); return r; },
     onSnapshot: (next) => { const f = () => { const docs = [...store.keys()].filter((k) => parent(k) === c).sort().map(snapDoc); next({ docs, size: docs.length, empty: !docs.length }); }; subs.add(f); f(); return () => subs.delete(f); } });
   const db = { doc: docRef, collection: colRef };
   window.__store = store; window.__llamadas = [];
