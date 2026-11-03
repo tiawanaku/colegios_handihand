@@ -183,6 +183,20 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
       </section>
     </div>
 
+    <details id="plan-b" class="panel" style="padding:12px 16px">
+      <summary style="cursor:pointer;font-weight:600">¿No puede escribir en esta página? Use al PO en su propio Claude</summary>
+      <div style="display:grid;gap:10px;margin-top:10px">
+        <ol style="margin:0;padding-left:20px">
+          <li>Copie las instrucciones con el botón de abajo.</li>
+          <li>Abra un chat nuevo en su Claude (claude.ai o la app), pegue las instrucciones y converse con el PO.</li>
+          <li>Al final el PO le mostrará el acta. Si está de acuerdo, responda con <b>ACEPTO</b>, su nombre completo y su CI.</li>
+          <li>Copie el bloque <code>acta-handihand</code> que le entregue y envíelo al responsable del proyecto.</li>
+        </ol>
+        <div class="row"><button type="button" class="primary" id="btn-copiar-prompt">Copiar instrucciones</button><span id="copiar-estado" class="muted" style="font-size:13px"></span></div>
+        <textarea id="prompt-externo" rows="6" readonly aria-label="Instrucciones para su Claude"></textarea>
+      </div>
+    </details>
+
     <section id="acta-wrap" class="acta" hidden aria-labelledby="acta-titulo"></section>
     <section id="historial" class="panel" hidden aria-labelledby="h-hist">
       <header><h2 id="h-hist">Actas anteriores</h2></header>
@@ -199,6 +213,14 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
       </header>
       <div class="body">
         <div id="entregas"></div>
+        <details id="importar" class="panel" style="padding:12px 16px">
+          <summary style="cursor:pointer;font-weight:600">Importar acta aceptada en el Claude del cliente</summary>
+          <div style="display:grid;gap:8px;margin-top:10px">
+            <label for="importar-texto" class="eyebrow">Pegue el bloque acta-handihand que envió el cliente</label>
+            <textarea id="importar-texto" rows="6"></textarea>
+            <div class="row"><button type="button" class="scrum" id="btn-importar">Importar acta</button><span id="importar-estado" class="muted" style="font-size:13px"></span></div>
+          </div>
+        </details>
         <div class="cfg">
           <label for="cfg-vel">Velocidad (puntos/sprint)<input id="cfg-vel" type="number" min="5" max="200" value="21"></label>
           <label for="cfg-sem">Duración del sprint (semanas)<input id="cfg-sem" type="number" min="1" max="4" value="2"></label>
@@ -261,6 +283,25 @@ Cómo trabajas:
 - Cuando el cliente diga que ya no tiene más cambios, resume las historias y llama a preparar_acta. Explícale que debe revisar el acta y firmarla al final de la página; con su firma las historias pasan al equipo de desarrollo (SCRUM_HANDIHAND).
 - No inventes funciones que el sistema ya tiene: revisa la descripción. Si ya existe, explícale dónde está.
 - Respuestas breves (máximo ~120 palabras), sin Markdown pesado.`;
+
+const BLOQUE = "\u0060\u0060\u0060";
+const REGLAS_EXTERNO = `Actúa como COLEGIOS_HANDIHAND, el Product Owner del sistema descrito abajo. Conversas en español (Bolivia) conmigo, el CLIENTE, que no soy técnico, para descubrir qué cambios o funciones nuevas quiero.
+
+Cómo trabajas:
+- Haz pocas preguntas a la vez (una o dos), claras y concretas, sin jerga técnica.
+- Antes de anotar una historia, entiende quién la necesita, qué quiere hacer y para qué. Si algo es ambiguo, pregunta.
+- Cuando una necesidad esté clara, muéstrala como historia numerada (HU-01, HU-02, …) con título, "Como <rol>, quiero <acción>, para <beneficio>", 2 a 5 criterios de aceptación verificables y prioridad (MUST, SHOULD, COULD o WONT) acordada conmigo, y pide mi confirmación.
+- Si pido algo que los datos actuales no tienen (por ejemplo matrícula o RUE), dilo con honestidad y anota qué dato haría falta.
+- Nunca prometas fechas, costos ni plazos: eso lo define el equipo Scrum después.
+- No inventes funciones que el sistema ya tiene: revisa la descripción y, si ya existe, explícame dónde está.
+- Respuestas breves (máximo ~120 palabras).
+- Cuando diga que no tengo más cambios, muéstrame el ACTA DE CONFORMIDAD completa en texto legible (resumen y tabla de historias) y pídeme que, si estoy de acuerdo, responda con: ACEPTO, mi nombre completo, mi cédula de identidad y, opcionalmente, mi cargo.
+- Solo después de esa respuesta, entrega el bloque final exactamente con este formato, para que yo lo copie y lo envíe al equipo:
+${BLOQUE}acta-handihand
+{"resumen":"...","historias":[{"codigo":"HU-01","titulo":"...","como":"...","quiero":"...","para":"...","criterios":["..."],"prioridad":"MUST","notas":""}],"firma":{"nombre":"...","ci":"...","cargo":"","acepto":true,"fecha":"AAAA-MM-DD"}}
+${BLOQUE}
+- En la firma usa exactamente lo que yo escribí; nunca la completes por tu cuenta.`;
+const PROMPT_EXTERNO = () => `${REGLAS_EXTERNO}\n\n${CONTEXTO}\n\nEmpieza saludándome y preguntando qué me gustaría cambiar, mejorar o agregar.`;
 
 const REGLAS_SCRUM = `Eres SCRUM_HANDIHAND, Scrum Master y facilitador técnico del equipo que desarrolla el sistema descrito abajo (FastAPI + PostgreSQL + JavaScript). Recibes historias de usuario aprobadas y firmadas por el cliente.`;
 
@@ -381,7 +422,7 @@ function actaHTML(acta, firma, integra) {
     <p class="hash">Huella del contenido (SHA-256): ${esc(acta.hash)}</p>
     ${firma ? `<div class="firmado">
         <strong>Firmada por ${esc(firma.nombre)} · CI ${esc(firma.ci)}${firma.cargo ? ` · ${esc(firma.cargo)}` : ""}</strong>
-        <span class="muted" style="font-size:13px">${esc(fechaLarga(firma.firmadoEn))} · cuenta: <span data-uid="${esc(firma.uid)}">…</span></span>
+        <span class="muted" style="font-size:13px">${esc(fechaLarga(firma.firmadoEn))} · ${firma.uid ? `cuenta: <span data-uid="${esc(firma.uid)}">…</span>` : "aceptación escrita en el Claude del cliente (sin firma dibujada), importada por el equipo"}</span>
         ${firma.trazo ? `<img src="${esc(firma.trazo)}" alt="Firma manuscrita de ${esc(firma.nombre)}">` : ""}
         <span style="font-size:13px;font-weight:600;color:${integra ? "var(--ok)" : "var(--bad)"}">${integra ? "Contenido íntegro: coincide con lo firmado." : "Atención: el acta fue modificada después de la firma."}</span>
       </div>` : ""}`;
@@ -430,7 +471,7 @@ async function renderHistorial() {
   for (const r of cerradas) {
     const acta = S.actas[r.id];
     if (!acta) continue;
-    const firma = firmaDe(r.id);
+    const firma = firmaDe(r.id) || (acta.firmaExterna ? { ...acta.firmaExterna, uid: null } : null);
     const integra = firma ? firma.hash === (await sha256(canonActa(acta))) && firma.hash === acta.hash : false;
     partes.push(`<details><summary><b>Acta N.º ${esc(acta.numero)}</b> · ${esc(acta.historias.length)} historias · <span class="pill ${esc(r.estado)}">${esc(ESTADO_TXT[r.estado])}</span></summary>
       <div class="acta" style="margin-top:10px">${actaHTML(acta, firma, integra)}
@@ -657,7 +698,7 @@ async function pedirCambios() {
 async function descargarActa(rid) {
   const acta = S.actas[rid];
   if (!acta || !S.downloads) return;
-  const firma = firmaDe(rid);
+  const firma = firmaDe(rid) || (acta.firmaExterna ? { ...acta.firmaExterna, uid: null } : null);
   const cuerpo = actaHTML(acta, firma, firma ? firma.hash === acta.hash : false).replace(/<span data-uid="[^"]*">…<\/span>/, "claude.ai");
   const doc = `<!doctype html><html lang="es"><meta charset="utf-8"><title>Acta ${acta.numero} - COLEGIOS_HANDIHAND</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;color:#172235}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ccd;padding:6px;text-align:left;vertical-align:top}.hash{font:12px monospace;color:#555;word-break:break-all}.firmado{border-left:4px solid #17734a;padding:8px 14px;background:#e2f3ea}.firmado img{max-width:260px}.eyebrow{font:600 11px monospace;letter-spacing:.08em;text-transform:uppercase;color:#5d6b80}</style>
@@ -823,6 +864,51 @@ async function enviarScrum(ev) {
   renderScrumChat();
 }
 
+// ============================================================================ plan B: acta aceptada fuera de la página
+function leerBloqueActa(texto) {
+  const m = texto.match(/\u0060{3}(?:acta-handihand|json)?\s*([\s\S]*?)\u0060{3}/);
+  const crudo = m ? m[1] : texto.slice(texto.indexOf("{"), texto.lastIndexOf("}") + 1);
+  let d;
+  try { d = JSON.parse(crudo); } catch { throw new Error("No se encontró un bloque acta-handihand válido. Pegue el bloque completo, incluidas las llaves { }."); }
+  if (!Array.isArray(d.historias) || !d.historias.length) throw new Error("El acta no tiene historias.");
+  const f = d.firma || {};
+  if (f.acepto !== true || !String(f.nombre || "").trim() || !String(f.ci || "").trim()) throw new Error("Falta la aceptación del cliente (ACEPTO, nombre completo y CI).");
+  return d;
+}
+
+async function importarActa() {
+  const estado = $("#importar-estado");
+  try {
+    const d = leerBloqueActa($("#importar-texto").value);
+    const numero = S.rondas.reduce((m, x) => Math.max(m, x.numero), 0) + 1;
+    const id = `r${String(numero).padStart(3, "0")}`;
+    let base = S.historias.reduce((m, h) => Math.max(m, parseInt(String(h.codigo).replace(/\D/g, ""), 10) || 0), 0);
+    const historias = d.historias.slice(0, 40).map((h) => ({
+      codigo: `HU-${String(++base).padStart(2, "0")}`, titulo: String(h.titulo || "").slice(0, 120), como: String(h.como || ""),
+      quiero: String(h.quiero || ""), para: String(h.para || ""), criterios: lista(h.criterios), prioridad: prio(h.prioridad),
+      notas: [h.notas, h.codigo ? `código en el chat del cliente: ${h.codigo}` : ""].filter(Boolean).join(" · ") }));
+    const acta = { ronda: id, numero, fecha: ahora(), resumen: String(d.resumen || ""), historias, origen: "externa" };
+    acta.hash = await sha256(canonActa(acta));
+    const f = d.firma;
+    acta.firmaExterna = { nombre: String(f.nombre).trim(), ci: String(f.ci).trim(), cargo: String(f.cargo || "").trim(),
+      firmadoEn: /^\d{4}-\d{2}-\d{2}/.test(String(f.fecha)) ? new Date(String(f.fecha).slice(0, 10) + "T12:00:00").toISOString() : ahora(),
+      hash: acta.hash, acepto: true, importadaPor: S.uid };
+    await S.db.doc(`rondas/${id}`).set({ numero, estado: "entregada", creada: ahora(), mensajes: [], origen: "externa", entregadaEn: ahora() });
+    for (const h of historias) await S.db.doc(`historias/${h.codigo}`).set({ ronda: id, ...h, estado: "aprobada", creada: ahora(), autor: S.uid });
+    await S.db.doc(`actas/${id}`).set(acta);
+    $("#importar-texto").value = "";
+    estado.textContent = `Acta N.º ${numero} importada con ${historias.length} historias. Ya puede generar el backlog.`;
+  } catch (e) {
+    estado.textContent = e?.message || `No se pudo importar (${e?.code || "error"}).`;
+  }
+}
+
+async function copiarPrompt() {
+  const ta = $("#prompt-externo");
+  try { await navigator.clipboard.writeText(ta.value); $("#copiar-estado").textContent = "Instrucciones copiadas."; }
+  catch { ta.focus(); ta.select(); $("#copiar-estado").textContent = "Seleccioné el texto: cópielo con Ctrl+C (o mantener presionado en el celular)."; }
+}
+
 // ============================================================================ arranque
 function suscribir() {
   const err = (e) => aviso(`Se perdió la conexión con los datos (${e.code}). Recargue la página.`, "bad");
@@ -853,16 +939,22 @@ async function iniciar() {
   $("#btn-planificar").addEventListener("click", planificar);
   $("#btn-detener-scrum").addEventListener("click", () => S.scrumCtl?.abort());
   $("#scrum-composer").addEventListener("submit", enviarScrum);
+  $("#prompt-externo").value = PROMPT_EXTERNO();
+  $("#btn-copiar-prompt").addEventListener("click", copiarPrompt);
+  $("#btn-importar").addEventListener("click", importarActa);
 
   const [db, user, sample, downloads] = await Promise.all(["db", "user", "sample", "downloads"].map((n) => window.claude?.use?.(n) ?? Promise.resolve(null)));
   Object.assign(S, { db, user, sample, downloads });
-  if (!db) { aviso("Para participar necesita abrir este enlace con su cuenta de claude.ai e invitación a la página."); return; }
+  $("#importar").hidden = true;
+  if (!db) { aviso("Esta página no puede guardar datos para su cuenta. Use la opción “Use al PO en su propio Claude” de abajo."); $("#plan-b").open = true; return; }
   S.uid = user ? await user.id() : null;
   const puede = user ? await user.can("data.write") : null;
   S.puedeEscribir = puede !== false;
   S.esEquipo = user ? await user.canEdit() : false;
-  if (!S.puedeEscribir) aviso("Tiene acceso solo de lectura: puede ver la conversación y las actas, pero no escribir ni firmar. Pida al responsable que le dé permiso de edición.");
-  else if (!sample) aviso("Esta vista no puede usar Claude, así que el Product Owner no puede responder aquí. Ábrala en claude.ai con su cuenta.");
+  $("#importar").hidden = !S.esEquipo;
+  if (!S.puedeEscribir || !sample) $("#plan-b").open = true;
+  if (!S.puedeEscribir) aviso("Su acceso a esta página es solo de lectura, así que no puede conversar ni firmar aquí. Use la opción “Use al PO en su propio Claude” de abajo.");
+  else if (!sample) aviso("Esta vista no puede usar Claude, así que el Product Owner no puede responder aquí. Use la opción “Use al PO en su propio Claude” de abajo.");
   else aviso("");
   suscribir();
   renderPO(); renderScrum();

@@ -37,6 +37,15 @@ Cliente ⇄ PO (ronda N: conversación + historias)
 
 Limitación: como Editor, el cliente también puede abrir la vista `#scrum`. Para separarlo del todo haría falta una lista de miembros del equipo o dos páginas distintas.
 
+## Si el cliente no puede usar la página (plan B)
+
+**Causa habitual:** la página está compartida con "cualquiera con el link". Con un link público, claude.ai deja a los invitados de fuera de tu organización **solo en lectura**, aunque los hayas invitado como Editor. Para que el cliente converse y firme en la página: Share → desactivar el link público y dejar solo la invitación por correo como Editor, con el mismo correo con que el cliente entra a Claude.
+
+**Si aun así no puede:** el cliente usa al PO en **su propio Claude**.
+1. Le envías el texto de `agentes/INSTRUCCIONES_PO_CLAUDE.md` (también está en la página: "Use al PO en su propio Claude" → Copiar instrucciones).
+2. Lo pega en un chat nuevo y conversa. Al final responde **ACEPTO**, su nombre y su CI, y recibe un bloque `acta-handihand`.
+3. Te envía ese bloque y lo pegas en `#scrum` → "Importar acta aceptada en el Claude del cliente". El acta queda con su huella SHA-256 y la aceptación escrita (sin firma dibujada), y las historias pasan a SCRUM.
+
 ## Pruebas
 
-`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (22 comprobaciones): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
+`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (27 comprobaciones, incluido el plan B): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
