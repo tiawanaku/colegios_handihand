@@ -25,6 +25,11 @@
     window.__llamadas.push(ultimo);
     let txt;
     if (ultimo.includes("mueve")) { await tool("mover_historia").execute({ codigo: "HU-01", sprint: 2 }, {}); txt = "Listo, HU-01 pasó al sprint 2."; }
+    else if (ultimo.includes("varias")) { // Claude registra varias historias en paralelo en una misma ronda
+      const base = { como: "encargado", quiero: "x", para: "y", criterios: ["a", "b"], prioridad: "MUST" };
+      const r = await Promise.all(["Barra lateral", "Registro de colegios", "Agenda"].map((titulo) => tool("registrar_historia").execute({ ...base, titulo }, {})));
+      txt = `Registré ${r.map((x) => x.codigo).join(", ")}.`;
+    }
     else if (ultimo.includes("no tengo más")) { await tool("preparar_acta").execute({ resumen: "Se acordó mostrar la matrícula por colegio." }, {}); txt = "Preparé el acta. Revísela y fírmela al final."; }
     else { const r = await tool("registrar_historia").execute({ titulo: "Ver matrícula por colegio", como: "técnico distrital", quiero: "ver cuántos estudiantes tiene cada colegio <b>", para: "planificar recursos", criterios: ["Dado un colegio, cuando abro su ficha, entonces veo su matrícula", "Se indica la fuente del dato"], prioridad: "MUST", notas: "Falta el dato de matrícula (SIE)" }, {}); txt = `Registré ${r.codigo}. ¿Algo más?`; }
     opts.onText?.({ text: txt, delta: txt });

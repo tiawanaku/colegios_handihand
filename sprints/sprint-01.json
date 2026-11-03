@@ -1,0 +1,150 @@
+{
+  "formato": "sprint-handihand/1",
+  "proyecto": "colegios_handihand",
+  "sprint": 1,
+  "objetivo": "Dejar la pantalla sin botones de exportación y permitir al encargado dar de baja y de alta colegios con confirmación, reflejándose en indicadores, mapa y listado.",
+  "inicio": "2026-11-03",
+  "fin": "2026-11-14",
+  "dod": [
+    "Criterios de aceptación de cada historia verificados y aprobados por el cliente",
+    "Código revisado por otro desarrollador y fusionado a la rama principal",
+    "Pruebas automáticas y manuales aprobadas en escritorio y celular, modo claro y oscuro",
+    "Migraciones de base de datos probadas en un entorno de pruebas y con respaldo antes de aplicarlas en producción",
+    "Endpoints nuevos protegidos con autenticación y rol, y con registro de quién y cuándo realizó cada cambio",
+    "Desplegado en el entorno de pruebas y demostrado en la revisión del sprint",
+    "Documentación breve actualizada (cambios en la vista SQL y en la API)"
+  ],
+  "equipo": {
+    "DEV1": {
+      "agente": "dev1-handihand",
+      "rol": "Backend y datos"
+    },
+    "DEV2": {
+      "agente": "dev2-handihand",
+      "rol": "Frontend y experiencia"
+    }
+  },
+  "historias": [
+    {
+      "codigo": "HU-01",
+      "titulo": "Quitar botones de exportación superiores",
+      "prioridad": "MUST",
+      "puntos": 2,
+      "como": "usuario del dashboard",
+      "quiero": "que los botones de exportar CSV, Excel y PDF de la parte superior ya no aparezcan",
+      "para": "tener una pantalla más limpia mientras se definen los informes",
+      "criterios": [
+        "Dado que entro al dashboard, cuando miro la parte superior, entonces no hay botones de exportación",
+        "Dado que uso cualquier sección, entonces no aparece ningún botón de exportar"
+      ],
+      "tareas": [
+        {
+          "id": "HU-01#1",
+          "titulo": "Identificar y retirar del frontend los botones de exportar CSV, Excel y PDF de la barra superior y de cualquier otra sección, ocultando también sus controladores en JavaScript",
+          "tipo": "frontend",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-01#2",
+          "titulo": "Ajustar el diseño de la barra superior para que quede limpia y alineada en escritorio y celular, en modo claro y oscuro",
+          "tipo": "diseño",
+          "horas": 2,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-01#3",
+          "titulo": "Mantener los endpoints de exportación del backend sin exponerlos en la interfaz, para reutilizarlos después en los informes",
+          "tipo": "backend",
+          "horas": 1,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-01#4",
+          "titulo": "Pruebas de aceptación: verificar que no aparece ningún botón de exportar en ninguna sección, vista ni tamaño de pantalla, y que el enlace compartible y los filtros siguen funcionando",
+          "tipo": "pruebas",
+          "horas": 2,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "codigo": "HU-02",
+      "titulo": "Dar de alta y baja colegios",
+      "prioridad": "SHOULD",
+      "puntos": 13,
+      "como": "encargado de la base de datos",
+      "quiero": "dar de alta y de baja a un colegio",
+      "para": "reflejar colegios que abren o dejan de funcionar",
+      "criterios": [
+        "Dado que doy de baja un colegio, entonces deja de aparecer en indicadores, mapa y listado",
+        "Dado que doy de alta un colegio dado de baja, entonces vuelve a aparecer",
+        "Dado que doy de baja, entonces el sistema pide confirmar antes"
+      ],
+      "tareas": [
+        {
+          "id": "HU-02#1",
+          "titulo": "Agregar a la tabla de colegios un campo de estado (activo/baja) con fecha de baja, y un registro de historial de altas y bajas; migración con respaldo previo",
+          "tipo": "datos",
+          "horas": 5,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-02#2",
+          "titulo": "Actualizar la vista SQL para excluir los colegios dados de baja de indicadores, mapa, gráficos y listado, conservando una consulta para ver los dados de baja",
+          "tipo": "datos",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-02#3",
+          "titulo": "Crear endpoints FastAPI protegidos por autenticación y rol de encargado: dar de baja, dar de alta (reactivar) y listar colegios dados de baja, con registro de usuario y fecha",
+          "tipo": "backend",
+          "horas": 8,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-02#4",
+          "titulo": "Interfaz para el encargado: acción de baja con diálogo de confirmación previo, sección de colegios dados de baja con opción de dar de alta, y refresco de indicadores, mapa y listado",
+          "tipo": "frontend",
+          "horas": 8,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-02#5",
+          "titulo": "Pruebas: baja oculta el colegio en indicadores, mapa y listado; alta lo restituye; la confirmación es obligatoria; acceso denegado a usuarios sin rol",
+          "tipo": "pruebas",
+          "horas": 5,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-02#6",
+          "titulo": "Pruebas: alta con datos válidos aparece en indicadores/mapa/listado; rechazo de coordenadas inválidas o niveles/turnos vacíos; acceso denegado sin rol",
+          "tipo": "pruebas",
+          "horas": 3,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    }
+  ]
+}

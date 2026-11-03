@@ -601,9 +601,13 @@ function guardarMensajes(rid, mensajes) {
   return guardando;
 }
 
+// Claude puede registrar varias historias en paralelo en la misma ronda de herramientas: el número se
+// reserva de forma síncrona para que dos registros simultáneos nunca reciban (y pisen) el mismo código.
+let ultimoCodigo = 0;
 function siguienteCodigo() {
   const max = S.historias.reduce((m, h) => Math.max(m, parseInt(String(h.codigo).replace(/\D/g, ""), 10) || 0), 0);
-  return `HU-${String(max + 1).padStart(2, "0")}`;
+  ultimoCodigo = Math.max(ultimoCodigo, max) + 1;
+  return `HU-${String(ultimoCodigo).padStart(2, "0")}`;
 }
 
 const lista = (v) => (Array.isArray(v) ? v : String(v || "").split(/\n|;/)).map((s) => String(s).trim()).filter(Boolean).slice(0, 8);
@@ -1123,9 +1127,8 @@ async function importarActa() {
     const d = leerBloqueActa($("#importar-texto").value);
     const numero = S.rondas.reduce((m, x) => Math.max(m, x.numero), 0) + 1;
     const id = `r${String(numero).padStart(3, "0")}`;
-    let base = S.historias.reduce((m, h) => Math.max(m, parseInt(String(h.codigo).replace(/\D/g, ""), 10) || 0), 0);
     const historias = d.historias.slice(0, 40).map((h) => ({
-      codigo: `HU-${String(++base).padStart(2, "0")}`, titulo: String(h.titulo || "").slice(0, 120), como: String(h.como || ""),
+      codigo: siguienteCodigo(), titulo: String(h.titulo || "").slice(0, 120), como: String(h.como || ""),
       quiero: String(h.quiero || ""), para: String(h.para || ""), criterios: lista(h.criterios), prioridad: prio(h.prioridad),
       notas: [h.notas, h.codigo ? `código en el chat del cliente: ${h.codigo}` : ""].filter(Boolean).join(" · ") }));
     const acta = { ronda: id, numero, fecha: ahora(), resumen: String(d.resumen || ""), historias, origen: "externa" };
