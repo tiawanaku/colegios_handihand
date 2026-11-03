@@ -20,6 +20,8 @@ function crearEstadoArtifact(api) {
     return u;
   }
 
+  const metaDe = (doc) => ({ usuario: String(doc?.usuario ?? "anónimo"), fecha: String(doc?.fecha ?? "") });
+
   /** Primera carga de la colección (antes de mostrar nada) y, después, cambios de otros visitantes en vivo. */
   const escuchar = (coleccion, aplicar, evento) => new Promise((resolver) => {
     db.collection(coleccion).onSnapshot((snap) => {
@@ -37,8 +39,8 @@ function crearEstadoArtifact(api) {
     await Promise.all([
       escuchar("bajas", (docs) => api.setBajas(docs.map((d) => [Number(d.id), d.data()])), "colegios:bajas"),
       escuchar("registros", (docs) => api.setRegistros(docs
-        .filter((d) => Number.isInteger(Number(d.id)) && Number(d.id) >= ID_MINIMO)
-        .map((d) => unidadDe(Number(d.id), d.data()?.unidad))), "colegios:registros"),
+        .filter((d) => Number.isInteger(Number(d.id)) && Number(d.id) >= ID_MINIMO && !api.esDeLosDatos(Number(d.id)))
+        .map((d) => [unidadDe(Number(d.id), d.data()?.unidad), metaDe(d.data())])), "colegios:registros"),
     ]);
     return true;
   })();
@@ -55,19 +57,24 @@ function crearEstadoArtifact(api) {
   }
 
   async function registrarUnidad(body) {
-    const errores = validarRegistro(body ?? {}, api("catalogos").opciones_registro); // de app.js
+    const op = api("catalogos").opciones_registro;
+    const errores = validarRegistro(body, op); // de app.js: mismas reglas y mensajes que el backend
     if (Object.keys(errores).length) throw error(422, "Revise los datos del colegio", { errores });
+    // mismos valores limpios que app/backend/registro.py
+    const turnos = new Set(body.turnos.map((t) => t.trim().toUpperCase()));
     const id = nuevoId();
     const unidad = unidadDe(id, {
-      ...body, nombre: body.nombre.trim(), direccion: body.direccion.trim(),
-      zona: body.zona?.trim() || null, telefono: body.telefono?.trim() || null,
-      niveles: body.niveles.join(","), turnos: body.turnos.join(","),
+      nombre: body.nombre.trim(), direccion: body.direccion.trim(), zona: body.zona?.trim() || null, telefono: body.telefono?.trim() || null,
+      dependencia: body.dependencia.trim().toUpperCase(), subsistema: body.subsistema == null ? "REGULAR" : body.subsistema.trim().toUpperCase(),
+      distrito_municipal: body.distrito_municipal, lat: body.lat, lon: body.lon,
+      niveles: [...new Set(body.niveles.map((n) => n.trim()))].join(","), turnos: op.turnos.filter((t) => turnos.has(t)).join(","),
     });
     const { id: _, registrado, ...datos } = unidad;
-    await db.doc(`registros/${id}`).set({ unidad: datos, usuario: uid || "anónimo", fecha: new Date().toISOString() });
-    api.agregarRegistro(unidad); // visible ya, sin esperar el aviso de la base
+    const meta = { usuario: uid || "anónimo", fecha: new Date().toISOString() };
+    await db.doc(`registros/${id}`).set({ unidad: datos, ...meta });
+    api.agregarRegistro(unidad, meta); // visible ya, sin esperar el aviso de la base
     await registrar(id, "registro");
-    return { ok: true, id, unidad };
+    return { ok: true, id, unidad: { ...unidad, registro: meta } };
   }
 
   return {

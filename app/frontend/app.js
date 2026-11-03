@@ -393,7 +393,8 @@ async function showDetail(id) {
       ? `<button type="button" data-accion="alta">Dar de alta</button>`
       : `<button type="button" class="peligro" data-accion="baja">Dar de baja</button>`}</div>
       <div id="detalle-confirmar" class="confirmar" role="group" aria-labelledby="detalle-confirmar-texto" hidden></div>` : "";
-    const registrado = r.registrado ? `<p class="muted">Registrado en este sistema.</p>` : "";
+    const registrado = r.registrado ? `<p class="muted">Registrado en este sistema${r.registro
+      ? ` por ${esc(r.registro.usuario)} el ${esc(fmtFecha(r.registro.fecha))}` : ""}.</p>` : "";
     $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>${baja}${registrado}
       <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>${acciones}`;
     const dlg = $("#detalle");
@@ -642,34 +643,43 @@ let opcionesRegistro = null, catalogosCargados = false, // true también si la c
   puedeRegistrar = CONFIG.staticApi ? null : true;
 let mapaRegistro, marcadorRegistro;
 
-/** Mismas reglas y mensajes que POST /api/unidades; static-estado.js la usa para la página publicada.
- *  Devuelve { campo: mensaje } (vacío si todo está bien). */
+/** Mismas reglas y mensajes que POST /api/unidades (app/backend/registro.py); static-estado.js la usa en la
+ *  página publicada. Devuelve { campo: mensaje } (vacío si todo está bien). */
 function validarRegistro(b, op) {
+  if (!b || typeof b !== "object" || Array.isArray(b)) return { general: "Los datos enviados no son válidos" };
   const e = {};
-  const texto = (v) => (typeof v === "string" ? v.trim() : "");
-  const opcional = (v, max) => v == null || (typeof v === "string" && v.length <= max);
-  const deLista = (v, ops) => Array.isArray(v) && v.length > 0 && v.every((x) => ops.includes(x));
-  if (!texto(b.nombre) || texto(b.nombre).length > 200) e.nombre = "Escribe el nombre del colegio (hasta 200 caracteres)";
-  if (!op.dependencias.includes(b.dependencia)) e.dependencia = "Elige una dependencia de la lista";
-  if (!op.subsistemas.includes(b.subsistema)) e.subsistema = "Elige un subsistema de la lista";
+  const largo = (v) => [...v].length; // como len() de Python: por carácter, no por unidad UTF-16
+  const texto = (campo, max, faltante) => {
+    const v = b[campo];
+    if (v == null || (typeof v === "string" && !v.trim())) { if (faltante) e[campo] = faltante; return; }
+    if (typeof v !== "string") e[campo] = "Debe ser un texto";
+    else if (largo(v.trim()) > max) e[campo] = `No puede pasar de ${max} caracteres`;
+  };
+  texto("nombre", 200, "Escriba el nombre del colegio");
+  texto("direccion", 255, "Escriba la dirección");
+  texto("zona", 200);
+  texto("telefono", 50);
+  const mayus = (v) => (typeof v === "string" ? v.trim().toUpperCase() : null);
+  if (!op.dependencias.includes(mayus(b.dependencia))) e.dependencia = "Elija la dependencia: fiscal, de convenio o privada";
+  if (b.subsistema != null && !op.subsistemas.includes(mayus(b.subsistema))) e.subsistema = "Elija un subsistema válido"; // sin dato: REGULAR
   if (!Number.isInteger(b.distrito_municipal) || !op.distritos.includes(b.distrito_municipal))
-    e.distrito_municipal = `Elige un distrito del ${op.distritos[0]} al ${op.distritos[op.distritos.length - 1]}`;
-  if (!texto(b.direccion) || texto(b.direccion).length > 300) e.direccion = "Escribe la dirección (hasta 300 caracteres)";
-  if (!opcional(b.zona, 120)) e.zona = "La zona admite hasta 120 caracteres";
-  if (!opcional(b.telefono, 40)) e.telefono = "El teléfono admite hasta 40 caracteres";
-  if (!deLista(b.niveles, op.niveles)) e.niveles = "Elige al menos un nivel de la lista";
-  if (!deLista(b.turnos, op.turnos)) e.turnos = "Elige al menos un turno de la lista";
-  for (const [c, nombre] of [["lat", "latitud"], ["lon", "longitud"]]) {
+    e.distrito_municipal = `Elija un distrito del ${op.distritos[0]} al ${op.distritos[op.distritos.length - 1]}`;
+  if (!Array.isArray(b.niveles) || !b.niveles.length) e.niveles = "Elija al menos un nivel";
+  else if (!b.niveles.every((n) => typeof n === "string" && n.trim() && !n.includes(",") && largo(n.trim()) <= 100))
+    e.niveles = "Cada nivel debe ser un texto sin comas de hasta 100 caracteres";
+  if (!Array.isArray(b.turnos) || !b.turnos.length) e.turnos = "Elija al menos un turno";
+  else if (!b.turnos.every((t) => op.turnos.includes(mayus(t)))) e.turnos = "Turno no válido: elija mañana, tarde o noche";
+  for (const c of ["lat", "lon"]) {
     const [min, max] = op.area[c];
-    if (typeof b[c] !== "number" || !Number.isFinite(b[c])) e[c] = `Falta la ${nombre}: marca la ubicación en el mapa`;
-    else if (b[c] < min || b[c] > max)
-      e[c] = `La ubicación está fuera del área de la ciudad: la ${nombre} debe estar entre ${min.toFixed(2)} y ${max.toFixed(2)}`;
+    if (typeof b[c] !== "number" || !Number.isFinite(b[c])) e[c] = "Marque la ubicación en el mapa";
+    else if (b[c] < min || b[c] > max) e[c] = "La ubicación está fuera del área de la ciudad";
   }
   return e;
 }
 
-const opcionesSelect = (vals, text = label) =>
-  `<option value="">Elige…</option>` + vals.map((v) => `<option value="${esc(v)}">${esc(text(v))}</option>`).join("");
+const opcionesSelect = (vals, text = label, porDefecto = "") =>
+  `<option value="">Elija…</option>` + vals.map((v) =>
+    `<option value="${esc(v)}"${v === porDefecto ? " selected" : ""}>${esc(text(v))}</option>`).join("");
 const casillas = (name, vals) => vals.map((v) =>
   `<label title="${esc(v)}"><input type="checkbox" name="${name}" value="${esc(v)}" aria-describedby="r-${name}-error">${esc(label(v))}</label>`).join("");
 
@@ -678,12 +688,12 @@ function renderOpcionesRegistro(op) {
   const form = $("#form-registro");
   const antes = datosRegistro();
   form.dependencia.innerHTML = opcionesSelect([...op.dependencias].sort(porOrden(ORDEN.dependencia)));
-  form.subsistema.innerHTML = opcionesSelect([...op.subsistemas].sort(porOrden(ORDEN.subsistema)));
+  form.subsistema.innerHTML = opcionesSelect([...op.subsistemas].sort(porOrden(ORDEN.subsistema)), label, "REGULAR");
   form.distrito_municipal.innerHTML = opcionesSelect(op.distritos.map(String), (d) => `D-${d}`);
   $("#r-niveles .chips").innerHTML = casillas("niveles", [...op.niveles].sort(porOrden(ORDEN.nivel)));
   $("#r-turnos .chips").innerHTML = casillas("turnos", [...op.turnos].sort(porOrden(ORDEN.turno)));
   form.dependencia.value = antes.dependencia ?? "";
-  form.subsistema.value = antes.subsistema ?? "";
+  if (antes.subsistema) form.subsistema.value = antes.subsistema;
   form.distrito_municipal.value = String(antes.distrito_municipal ?? "");
   form.querySelectorAll("fieldset input[type=checkbox]").forEach((i) => (i.checked = antes[i.name].includes(i.value)));
 }
@@ -717,7 +727,7 @@ function mostrarErroresRegistro(errores = {}) {
   CAMPOS_REGISTRO.forEach((c) => errorDeCampo(c, errores[c]));
   const otros = Object.entries(errores).filter(([c]) => !CAMPOS_REGISTRO.includes(c));
   const hay = Object.keys(errores).length > 0;
-  estadoRegistro(hay ? `Revisa los datos del colegio${otros.length ? `: ${otros.map(([c, m]) => `${c}: ${m}`).join("; ")}` : " marcados en el formulario."}` : "");
+  estadoRegistro(hay ? `Revise los datos del colegio${otros.length ? `: ${otros.map(([, m]) => m).join("; ")}` : " marcados en el formulario."}` : "");
   const primero = CAMPOS_REGISTRO.find((c) => errores[c]);
   if (primero) controlesDe(primero)[0]?.focus();
 }
@@ -734,12 +744,12 @@ function actualizarRegistro() {
   const form = $("#form-registro");
   if (puedeRegistrar === false) {
     form.hidden = true;
-    return estadoRegistro("El registro de colegios sólo funciona en la versión con servidor o en la página publicada en claude.ai. Aquí los datos son de solo consulta.", "info");
+    return estadoRegistro("El registro de colegios sólo funciona en la versión con servidor o en la página publicada en claude.ai. Esta copia es de solo consulta.", "info");
   }
   if (!opcionesRegistro || puedeRegistrar == null) {
     form.hidden = true;
     return catalogosCargados && !opcionesRegistro
-      ? estadoRegistro("No se pudieron cargar las opciones del registro. Reintenta en unos segundos.")
+      ? estadoRegistro("No se pudieron cargar las opciones del registro. Recargue la página en unos segundos.")
       : estadoRegistro("Cargando el formulario…", "info");
   }
   if (form.hidden) estadoRegistro("");
@@ -785,11 +795,11 @@ function limpiarRegistro() {
 
 function mensajeRegistro(e) {
   return {
-    0: "No se pudo conectar con el servidor. Revisa la conexión y reintenta.",
-    401: "Tu sesión venció: inicia sesión de nuevo para registrar colegios.",
-    403: "Tu usuario no tiene permiso para registrar colegios.",
-    422: `Revisa los datos del colegio (${e.message}).`,
-  }[e.status] || `No se pudo guardar el colegio (${e.message}). Reintenta en unos segundos.`;
+    0: "No se pudo conectar con el servidor. Revise la conexión y vuelva a intentar.",
+    401: "Su sesión venció: inicie sesión de nuevo para registrar colegios.",
+    403: "Su usuario no tiene permiso para registrar colegios.",
+    422: `Revise los datos del colegio (${e.message}).`,
+  }[e.status] || `No se pudo guardar el colegio (${e.message}). Vuelva a intentar en unos segundos.`;
 }
 
 async function guardarRegistro(ev) {

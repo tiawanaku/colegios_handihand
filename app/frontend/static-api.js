@@ -8,7 +8,7 @@ function createStaticApi(filas) {
   // guardarlos. Igual que el backend: no salen en listados, mapa, estadísticas ni catálogos.
   let bajas = new Map();
   // Colegios registrados en la página (ids ≥ 1.000.000, `registrado: true`): se mezclan con los demás en todo.
-  let registros = [];
+  let registros = [], metaRegistros = new Map(); // id → {usuario, fecha} para la ficha
   let todas = filas, rows = filas;
   const actualizar = () => {
     todas = registros.length ? [...filas, ...registros] : filas;
@@ -118,15 +118,26 @@ function createStaticApi(filas) {
     if (m) {
       const r = todas.find((x) => String(x.id) === decodeURIComponent(m[1]));
       if (!r) throw new Error(`${path}: HTTP 404`);
-      return bajas.has(r.id) ? { ...r, baja: bajas.get(r.id) } : r;
+      const ficha = metaRegistros.has(r.id) ? { ...r, registro: metaRegistros.get(r.id) } : r;
+      return bajas.has(r.id) ? { ...ficha, baja: bajas.get(r.id) } : ficha;
     }
     throw new Error(`${path}: HTTP 404`);
   }
   staticApi.existe = (id) => todas.some((r) => r.id === id);
   staticApi.estaDeBaja = (id) => bajas.has(id);
   staticApi.setBajas = (mapa) => { bajas = new Map(mapa); actualizar(); };
-  staticApi.setRegistros = (lista) => { registros = [...lista]; actualizar(); };
-  staticApi.agregarRegistro = (r) => { registros = [...registros.filter((x) => x.id !== r.id), r]; actualizar(); };
+  staticApi.esDeLosDatos = (id) => filas.some((r) => r.id === id);
+  // lista de [unidad, {usuario, fecha}]
+  staticApi.setRegistros = (lista) => {
+    registros = lista.map(([u]) => u);
+    metaRegistros = new Map(lista.map(([u, m]) => [u.id, m]));
+    actualizar();
+  };
+  staticApi.agregarRegistro = (u, meta) => {
+    registros = [...registros.filter((x) => x.id !== u.id), u];
+    metaRegistros.set(u.id, meta);
+    actualizar();
+  };
   staticApi.cantidadRegistros = () => registros.length;
   return staticApi;
 }

@@ -98,14 +98,14 @@
             <div class="campo"><label for="r-dependencia">Dependencia *</label><select id="r-dependencia" name="dependencia" aria-describedby="r-dependencia-error"></select><p id="r-dependencia-error" class="error-campo" hidden></p></div>
             <div class="campo"><label for="r-subsistema">Subsistema *</label><select id="r-subsistema" name="subsistema" aria-describedby="r-subsistema-error"></select><p id="r-subsistema-error" class="error-campo" hidden></p></div>
             <div class="campo"><label for="r-distrito_municipal">Distrito *</label><select id="r-distrito_municipal" name="distrito_municipal" aria-describedby="r-distrito_municipal-error"></select><p id="r-distrito_municipal-error" class="error-campo" hidden></p></div>
-            <div class="campo ancho"><label for="r-direccion">Dirección *</label><input id="r-direccion" name="direccion" maxlength="300" autocomplete="off" aria-describedby="r-direccion-error"><p id="r-direccion-error" class="error-campo" hidden></p></div>
-            <div class="campo"><label for="r-zona">Zona</label><input id="r-zona" name="zona" maxlength="120" autocomplete="off" aria-describedby="r-zona-error"><p id="r-zona-error" class="error-campo" hidden></p></div>
-            <div class="campo"><label for="r-telefono">Teléfono</label><input id="r-telefono" name="telefono" type="tel" maxlength="40" autocomplete="off" aria-describedby="r-telefono-error"><p id="r-telefono-error" class="error-campo" hidden></p></div>
+            <div class="campo ancho"><label for="r-direccion">Dirección *</label><input id="r-direccion" name="direccion" maxlength="255" autocomplete="off" aria-describedby="r-direccion-error"><p id="r-direccion-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-zona">Zona</label><input id="r-zona" name="zona" maxlength="200" autocomplete="off" aria-describedby="r-zona-error"><p id="r-zona-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-telefono">Teléfono</label><input id="r-telefono" name="telefono" type="tel" maxlength="50" autocomplete="off" aria-describedby="r-telefono-error"><p id="r-telefono-error" class="error-campo" hidden></p></div>
           </div>
           <fieldset id="r-niveles"><legend>Niveles * <span class="muted">(al menos uno)</span></legend><div class="chips"></div><p id="r-niveles-error" class="error-campo" hidden></p></fieldset>
           <fieldset id="r-turnos"><legend>Turnos * <span class="muted">(al menos uno)</span></legend><div class="chips"></div><p id="r-turnos-error" class="error-campo" hidden></p></fieldset>
           <fieldset class="ubicacion"><legend>Ubicación *</legend>
-            <p id="r-mapa-ayuda" class="muted">Haga clic en el mapa para marcar el colegio (puede arrastrar el marcador) o escriba la latitud y la longitud.</p>
+            <p id="r-mapa-ayuda" class="muted">Haga clic en el mapa para marcar el colegio (puede arrastrar el marcador) o escriba la latitud y la longitud. El recuadro punteado es el área de la ciudad.</p>
             <div id="r-mapa" class="mapa-registro" role="application" aria-label="Mapa para elegir la ubicación" aria-describedby="r-mapa-ayuda"></div>
             <div class="campos">
               <div class="campo"><label for="r-lat">Latitud</label><input id="r-lat" name="lat" type="number" step="any" inputmode="decimal" aria-describedby="r-lat-error"><p id="r-lat-error" class="error-campo" hidden></p></div>
