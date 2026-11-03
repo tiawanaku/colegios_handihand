@@ -6,20 +6,23 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import literal
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, StrictBool
 from sqlmodel import Session, col, func, or_, select
 
-from . import auth, estado
+from . import auth, estado, registro
 from .db import engine, init_db
 from .models import UnidadEducativa
 from .pdf_report import build_pdf
@@ -167,17 +170,57 @@ class Filtros:
             like = f"%{self.q.strip()}%"
             stmt = stmt.where(or_(col(U.nombre).ilike(like), col(U.direccion).ilike(like),
                                   col(U.zona).ilike(like), col(U.codigo_rue).ilike(like)))
-        if self.bbox:
-            try:
-                x1, y1, x2, y2 = map(float, self.bbox.split(","))
-            except ValueError:
-                raise HTTPException(422, "bbox debe ser minLon,minLat,maxLon,maxLat")
+        if caja := self._caja():
+            x1, y1, x2, y2 = caja
             stmt = stmt.where(U.lon >= x1, U.lon <= x2, U.lat >= y1, U.lat <= y2)
         if self.con_coordenadas is True:
             stmt = stmt.where(col(U.lat).is_not(None), col(U.lon).is_not(None))
         elif self.con_coordenadas is False:
             stmt = stmt.where(or_(col(U.lat).is_(None), col(U.lon).is_(None)))
         return stmt
+
+    def _caja(self) -> tuple[float, ...] | None:
+        if not self.bbox:
+            return None
+        try:
+            x1, y1, x2, y2 = map(float, self.bbox.split(","))
+        except ValueError:
+            raise HTTPException(422, "bbox debe ser minLon,minLat,maxLon,maxLat")
+        return x1, y1, x2, y2
+
+    def registrados(self) -> list[UnidadEducativa]:
+        """Colegios registrados (tabla propia) activos que pasan los mismos filtros que apply() en SQL."""
+        bajas, caja = estado.ids_de_baja(), self._caja()
+        return [u for u in map(registro.a_unidad, registro.todas()) if u.id not in bajas and self._cumple(u, caja)]
+
+    def _cumple(self, u: UnidadEducativa, caja) -> bool:
+        items = lambda v: set((v or "").split(","))
+        if self.dependencia and u.dependencia not in {d.upper() for d in self.dependencia}:
+            return False
+        if self.distrito and u.distrito_municipal not in self.distrito:
+            return False
+        for valores, campo in ((self.nivel, u.niveles), (self.turno, u.turnos), (self.subsistema, u.subsistema)):
+            if valores and not items(campo) & {v.upper() for v in valores}:
+                return False
+        if self.q:
+            texto = self.q.strip().lower()
+            if not any(texto in (x or "").lower() for x in (u.nombre, u.direccion, u.zona, u.codigo_rue)):
+                return False
+        con_coord = u.lat is not None and u.lon is not None
+        if caja and not (con_coord and caja[0] <= u.lon <= caja[2] and caja[1] <= u.lat <= caja[3]):
+            return False
+        return self.con_coordenadas is None or self.con_coordenadas == con_coord
+
+    def todas(self, session: Session, stmt=None) -> list[UnidadEducativa]:
+        """Vista filtrada más registrados filtrados."""
+        return list(session.exec(self.apply(stmt if stmt is not None else select(UnidadEducativa))).all()) + self.registrados()
+
+
+def _ordenar(rows: list, campo: str, desc: bool) -> list:
+    # como el ORDER BY de SQL: nulos al final y desempate por id (sort de Python es estable, también con reverse)
+    rows = sorted(rows, key=lambda r: r.id)
+    con = sorted((r for r in rows if getattr(r, campo) is not None), key=lambda r: getattr(r, campo), reverse=desc)
+    return con + [r for r in rows if getattr(r, campo) is None]
 
 
 FiltrosDep = Annotated[Filtros, Depends()]
@@ -195,27 +238,72 @@ def listar(
     campo = orden.lstrip("-")
     if campo not in ORDENABLES:
         raise HTTPException(422, f"orden debe ser uno de {sorted(ORDENABLES)}")
-    base = filtros.apply(select(UnidadEducativa))
-    total = session.exec(select(func.count()).select_from(base.subquery())).one()
-    sort_col = getattr(UnidadEducativa, campo)
-    rows = session.exec(
-        # NULLS LAST explícito: PostgreSQL y SQLite difieren por defecto en DESC
-        base.order_by((sort_col.desc() if desc else sort_col.asc()).nulls_last(), UnidadEducativa.id)
-        .offset((page - 1) * page_size).limit(page_size)
-    ).all()
+    if extra := filtros.registrados():
+        # con colegios registrados se combina y pagina en Python (son pocos cientos de filas)
+        todas = _ordenar(list(session.exec(filtros.apply(select(UnidadEducativa))).all()) + extra, campo, desc)
+        total, rows = len(todas), todas[(page - 1) * page_size:page * page_size]
+    else:
+        base = filtros.apply(select(UnidadEducativa))
+        total = session.exec(select(func.count()).select_from(base.subquery())).one()
+        sort_col = getattr(UnidadEducativa, campo)
+        rows = session.exec(
+            # NULLS LAST explícito: PostgreSQL y SQLite difieren por defecto en DESC
+            base.order_by((sort_col.desc() if desc else sort_col.asc()).nulls_last(), UnidadEducativa.id)
+            .offset((page - 1) * page_size).limit(page_size)
+        ).all()
     return {"count": total, "page": page, "page_size": page_size,
             "results": [r.model_dump(exclude=OCULTOS) for r in rows]}
 
 
-@app.get("/api/unidades/{ue_id}", tags=["unidades"])
-def detalle(ue_id: int, session: SessionDep):
-    row = session.get(UnidadEducativa, ue_id)
-    if row is None:
-        raise HTTPException(404, "Unidad educativa no encontrada")
+def _buscar(session: Session, ue_id: int) -> tuple[UnidadEducativa | None, registro.UnidadRegistrada | None]:
+    if (reg := registro.obtener(ue_id)) is not None:
+        return registro.a_unidad(reg), reg
+    return session.get(UnidadEducativa, ue_id), None
+
+
+def _ficha(row: UnidadEducativa, reg: registro.UnidadRegistrada | None) -> dict:
     datos = row.model_dump(exclude=OCULTOS)
-    if (e := estado.de_baja(ue_id)) is not None:
+    if reg is not None:
+        datos["registrado"] = True
+        datos["registro"] = {"usuario": reg.usuario, "fecha": estado.iso(reg.creado)}
+    if (e := estado.de_baja(row.id)) is not None:
         datos["baja"] = {"fecha": estado.iso(e.fecha_baja), "motivo": e.motivo, "usuario": e.usuario}
     return datos
+
+
+@app.get("/api/unidades/{ue_id}", tags=["unidades"])
+def detalle(ue_id: int, session: SessionDep):
+    row, reg = _buscar(session, ue_id)
+    if row is None:
+        raise HTTPException(404, "Unidad educativa no encontrada")
+    return _ficha(row, reg)
+
+
+MAX_CUERPO = 64 * 1024
+
+
+@app.post("/api/unidades", tags=["registro"], status_code=201)
+async def registrar_unidad(request: Request):
+    """Registra un colegio nuevo (cualquier usuario con sesión). Los errores de validación llegan como
+    422 `{detail, errores: {campo: mensaje}}`, también si el JSON está mal formado."""
+    if auth.AUTH_ENABLED:
+        u = getattr(request.state, "usuario", None)
+        if u is None:
+            raise HTTPException(401, "Sesión requerida")
+        usuario = u.usuario
+    else:
+        usuario = "dev"
+    cuerpo = await request.body()
+    try:
+        datos = json.loads(cuerpo) if len(cuerpo) <= MAX_CUERPO else None
+    except (ValueError, RecursionError):
+        datos = None
+    try:
+        reg = await run_in_threadpool(registro.registrar, datos, usuario)
+    except registro.ErrorValidacion as e:
+        return JSONResponse({"detail": "Revise los datos del colegio", "errores": e.errores}, status_code=422)
+    unidad = _ficha(registro.a_unidad(reg), reg)
+    return JSONResponse(jsonable_encoder({"ok": True, "id": reg.id, "unidad": unidad}), status_code=201)
 
 
 class Baja(BaseModel):
@@ -234,7 +322,7 @@ def _confirmada(confirmar: bool | None) -> None:
 
 
 def _existente(session: Session, ue_id: int) -> None:
-    if session.get(UnidadEducativa, ue_id) is None:
+    if _buscar(session, ue_id)[0] is None:
         raise HTTPException(404, "Unidad educativa no encontrada")
 
 
@@ -275,6 +363,8 @@ def listar_bajas(session: SessionDep, _usuario: EncargadoDep):
     filas = estado.bajas()
     U = UnidadEducativa
     unidades = {u.id: u for u in session.exec(select(U).where(col(U.id).in_([f.ue_id for f in filas])))} if filas else {}
+    if filas and any(f.ue_id >= registro.PRIMER_ID for f in filas):
+        unidades.update((r.id, registro.a_unidad(r)) for r in registro.todas())
     return [
         {"id": f.ue_id, "nombre": (u := unidades.get(f.ue_id)) and u.nombre,
          "distrito_municipal": u and u.distrito_municipal, "dependencia": u and u.dependencia,
@@ -285,8 +375,7 @@ def listar_bajas(session: SessionDep, _usuario: EncargadoDep):
 
 @app.get("/api/geojson", tags=["mapa"])
 def geojson(session: SessionDep, filtros: FiltrosDep):
-    stmt = filtros.apply(select(UnidadEducativa)).where(
-        col(UnidadEducativa.lat).is_not(None), col(UnidadEducativa.lon).is_not(None))
+    stmt = select(UnidadEducativa).where(col(UnidadEducativa.lat).is_not(None), col(UnidadEducativa.lon).is_not(None))
     features = [
         {
             "type": "Feature",
@@ -294,14 +383,14 @@ def geojson(session: SessionDep, filtros: FiltrosDep):
             "properties": {"id": r.id, "nombre": r.nombre, "dependencia": r.dependencia,
                            "distrito": r.distrito_municipal, "niveles": r.niveles},
         }
-        for r in session.exec(stmt).all()
+        for r in filtros.todas(session, stmt) if r.lat is not None and r.lon is not None
     ]
     return {"type": "FeatureCollection", "features": features}
 
 
 @app.get("/api/estadisticas", tags=["indicadores"])
 def estadisticas(session: SessionDep, filtros: FiltrosDep):
-    rows = session.exec(filtros.apply(select(UnidadEducativa))).all()
+    rows = filtros.todas(session)
     por_dep = Counter(r.dependencia or "SIN DATO" for r in rows)
     por_nivel: Counter = Counter()
     por_turno: Counter = Counter()
@@ -348,16 +437,28 @@ def catalogos(session: SessionDep):
         niveles.update(filter(None, (n or "").split(",")))
         turnos.update(filter(None, (t or "").split(",")))
         subsistemas.update(filter(None, (sub or "").split(",")))
-    deps = session.exec(solo_activas(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct())).all()
+    deps = set(session.exec(solo_activas(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct())).all())
+    distritos = set(distritos)
+    for r in Filtros().registrados():
+        niveles.update(filter(None, r.niveles.split(",")))
+        turnos.update(filter(None, r.turnos.split(",")))
+        subsistemas.update(filter(None, r.subsistema.split(",")))
+        deps.add(r.dependencia)
+        distritos.add(r.distrito_municipal)
     con_matricula = session.exec(solo_activas(select(U.id).where(col(U.estudiantes_total).is_not(None))).limit(1)).first() is not None
     return {"dependencias": sorted(deps), "distritos": sorted(distritos), "niveles": sorted(niveles),
             "turnos": sorted(turnos), "subsistemas": sorted(subsistemas),
-            "campos": {"matricula": con_matricula}}
+            "campos": {"matricula": con_matricula},
+            "opciones_registro": {"dependencias": registro.DEPENDENCIAS, "subsistemas": registro.SUBSISTEMAS,
+                                  "turnos": registro.TURNOS, "niveles": sorted(niveles),
+                                  "distritos": registro.DISTRITOS, "area": registro.AREA}}
 
 
 @app.get("/api/export.{fmt}", tags=["exportar"])
 def exportar(fmt: str, session: SessionDep, filtros: FiltrosDep):
     rows = session.exec(filtros.apply(select(UnidadEducativa)).order_by(UnidadEducativa.distrito_municipal, UnidadEducativa.nombre)).all()
+    if extra := filtros.registrados():
+        rows = sorted([*rows, *extra], key=lambda r: (r.distrito_municipal is None, r.distrito_municipal or 0, r.nombre))
     if fmt == "csv":
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=EXPORT_FIELDS, extrasaction="ignore")

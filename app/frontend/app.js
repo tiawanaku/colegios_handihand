@@ -21,6 +21,10 @@ const CONFIG = {
 
 const FILTROS = ["dependencia", "subsistema", "nivel", "turno", "distrito"]; // multivalor, en el orden de la UI
 const ORDEN_DEFAULT = "nombre";
+// Secciones de la barra lateral; los filtros sólo aplican (y sólo se ven) en las que muestran datos.
+const VISTAS = ["dashboard", "registro", "modificacion", "agenda", "estadisticas"];
+const VISTA_DEFAULT = "dashboard";
+const VISTAS_CON_FILTROS = ["dashboard", "estadisticas"];
 
 const COLORS = { FISCAL: "--fiscal", CONVENIO: "--convenio", PRIVADA: "--privada", COMUNITARIA: "--comunitaria" };
 const LABEL = {
@@ -69,7 +73,7 @@ const fmtFecha = (s) => {
 };
 
 // ---------------------------------------------------------------- estado (único, sincronizado con la URL)
-const state = { q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
+const state = { vista: VISTA_DEFAULT, q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
 
 function readUrl() {
   const u = new URLSearchParams(location.search);
@@ -77,6 +81,7 @@ function readUrl() {
   for (const f of FILTROS) state[f] = u.getAll(f);
   state.page = Math.max(1, parseInt(u.get("page"), 10) || 1);
   state.orden = u.get("orden") || ORDEN_DEFAULT;
+  state.vista = VISTAS.includes(u.get("vista")) ? u.get("vista") : VISTA_DEFAULT;
 }
 
 /** Parámetros de filtro (sin paginación): los comparten estadísticas, mapa y tabla. */
@@ -92,13 +97,25 @@ function renderFiltrosActivos() {
   $("#filtros-activos").textContent = n ? `(${n} activos)` : "";
 }
 
-function writeUrl() {
-  renderFiltrosActivos();
+/** URL de la vista `vista` con el resto del estado actual (la de la barra lateral y la de la página). */
+function urlDe(vista) {
   const p = filterParams();
   if (state.page > 1) p.set("page", state.page);
   if (state.orden !== ORDEN_DEFAULT) p.set("orden", state.orden);
+  if (vista !== VISTA_DEFAULT) p.set("vista", vista);
   const qs = p.toString();
-  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+  return qs ? `?${qs}` : location.pathname;
+}
+
+/** Los enlaces de la barra lateral conservan filtros, página y orden (abrir en otra pestaña da la misma vista). */
+const actualizarNav = () =>
+  document.querySelectorAll("#nav a[data-vista]").forEach((a) => a.setAttribute("href", urlDe(a.dataset.vista)));
+
+/** Cambiar de sección crea una entrada en el historial (atrás vuelve a la anterior); filtros y página la reemplazan. */
+function writeUrl({ push = false } = {}) {
+  renderFiltrosActivos();
+  history[push ? "pushState" : "replaceState"](null, "", urlDe(state.vista));
+  actualizarNav();
 }
 
 // ---------------------------------------------------------------- red
@@ -170,6 +187,9 @@ async function loadCatalogos() {
   renderChips("distrito", c.distritos.map(String), (d) => `D-${d}`);
   $("#legend").innerHTML = c.dependencias
     .map((d) => `<span><i style="background:${color(d)}"></i>${esc(label(d))}</span>`).join("");
+  catalogosCargados = true;
+  if (c.opciones_registro) renderOpcionesRegistro((opcionesRegistro = c.opciones_registro));
+  actualizarRegistro();
   return c;
 }
 
@@ -181,8 +201,11 @@ function chart(id, config) {
   charts[id] = new Chart($(`#${id}`), config);
 }
 
+let ultimasStats = null, graficosAlDia = false;
+
 async function loadStats() {
-  const s = await api("stats", "estadisticas", filterParams());
+  const s = (ultimasStats = await api("stats", "estadisticas", filterParams()));
+  graficosAlDia = false;
   const dep = s.por_dependencia || {};
   const kpis = [["Unidades educativas", s.total_unidades, "--accent"]];
   for (const [d, title] of Object.entries(KPI_DEP))
@@ -193,7 +216,15 @@ async function loadStats() {
   }
   $("#kpis").innerHTML = kpis
     .map(([t, v, c]) => `<div class="kpi" style="--c:var(${c})"><b>${fmt(v)}</b><span>${t}</span></div>`).join("");
+  if (state.vista === "estadisticas") drawCharts();
+}
 
+/** Los gráficos se dibujan sólo con su sección visible: en un contenedor oculto Chart.js mide 0 × 0. */
+function drawCharts() {
+  const s = ultimasStats;
+  if (!s || graficosAlDia || typeof Chart === "undefined") return;
+  graficosAlDia = true;
+  const dep = s.por_dependencia || {};
   const deps = Object.keys(dep).sort(porOrden(ORDEN.dependencia));
   chart("ch-dep", {
     type: "doughnut",
@@ -220,7 +251,7 @@ async function loadStats() {
 }
 
 // ---------------------------------------------------------------- mapa
-let map, layer, ultimoGeojson, sinMapaBase = false;
+let map, layer, ultimoGeojson, sinMapaBase = false, encuadrePendiente = null;
 
 /** Lista de mapas base de la configuración (acepta también una URL suelta, como en versiones anteriores). */
 function proveedores() {
@@ -229,14 +260,17 @@ function proveedores() {
   return (Array.isArray(t) ? t : [t]).map((p) => (typeof p === "string" ? { url: p, attribution: CONFIG.tilesAttribution } : p));
 }
 
-/** Prueba los mapas base en orden. Un proveedor se descarta si sus primeros tiles fallan sin que cargue ninguno. */
 function addBaseLayer(lista) {
-  if (!lista.length) {
+  capaBase(map, lista, () => {
     sinMapaBase = true;
     $("#map").classList.add("sin-mapa-base");
     if (ultimoGeojson) drawDistritos(ultimoGeojson);
-    return;
-  }
+  });
+}
+
+/** Prueba los mapas base en orden. Un proveedor se descarta si sus primeros tiles fallan sin que cargue ninguno. */
+function capaBase(m, lista, sinNinguno) {
+  if (!lista.length) return sinNinguno();
   const [p, ...resto] = lista;
   // referrerPolicy: OpenStreetMap rechaza (403) los tiles pedidos sin Referer, p. ej. tras un
   // proxy con "Referrer-Policy: no-referrer"; así se envía al menos el origen del sitio.
@@ -244,12 +278,12 @@ function addBaseLayer(lista) {
   let cargados = 0, fallos = 0;
   tl.on("tileload", () => cargados++);
   tl.on("tileerror", () => {
-    if (++fallos < 4 || cargados > 0 || !map.hasLayer(tl)) return;
+    if (++fallos < 4 || cargados > 0 || !m.hasLayer(tl)) return;
     tl.remove();
     console.warn(`Mapa base no disponible: ${p.url}`);
-    addBaseLayer(resto);
+    capaBase(m, resto, sinNinguno);
   });
-  tl.addTo(map);
+  tl.addTo(m);
 }
 
 async function loadMap() {
@@ -277,7 +311,9 @@ async function loadMap() {
   const area = L.latLngBounds(CONFIG.areaBounds);
   const dentro = gj.features.map((f) => L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0])).filter((ll) => area.contains(ll));
   const bounds = dentro.length ? L.latLngBounds(dentro) : gj.features.length ? layer.getBounds() : null;
-  if (bounds) map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+  // con el Dashboard oculto el mapa mide 0: se encuadra al volver a mostrarlo (mostrarVista)
+  if (bounds && state.vista !== "dashboard") encuadrePendiente = bounds;
+  else if (bounds) { encuadrePendiente = null; map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 }); }
 }
 
 // Sin mapa base (p. ej. donde los tiles están bloqueados): rótulos "D-n" en el centro de cada distrito
@@ -357,7 +393,8 @@ async function showDetail(id) {
       ? `<button type="button" data-accion="alta">Dar de alta</button>`
       : `<button type="button" class="peligro" data-accion="baja">Dar de baja</button>`}</div>
       <div id="detalle-confirmar" class="confirmar" role="group" aria-labelledby="detalle-confirmar-texto" hidden></div>` : "";
-    $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>${baja}
+    const registrado = r.registrado ? `<p class="muted">Registrado en este sistema.</p>` : "";
+    $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>${baja}${registrado}
       <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>${acciones}`;
     const dlg = $("#detalle");
     if (!dlg.open) dlg.showModal();
@@ -383,7 +420,7 @@ function pasoConfirmacion(tipo, nombre, pre) {
 }
 
 async function post(path, body) {
-  // página estática en claude.ai: las bajas se guardan en la base compartida del artifact
+  // página estática en claude.ai: bajas y registros se guardan en la base compartida del artifact
   if (CONFIG.staticEstado) return CONFIG.staticEstado.post(path, body);
   let r;
   try {
@@ -396,7 +433,7 @@ async function post(path, body) {
   if (r.status === 401) irAlLogin();
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
-    throw Object.assign(new Error(typeof d.detail === "string" ? d.detail : `HTTP ${r.status}`), { status: r.status });
+    throw Object.assign(new Error(typeof d.detail === "string" ? d.detail : `HTTP ${r.status}`), { status: r.status, errores: d.errores });
   }
   return r.json();
 }
@@ -541,6 +578,272 @@ function bindBajas() {
   });
 }
 
+// ---------------------------------------------------------------- navegación (barra lateral)
+function mostrarVista({ enfocar = false } = {}) {
+  const v = state.vista;
+  for (const x of VISTAS) $(`#vista-${x}`).hidden = x !== v;
+  document.querySelectorAll("#nav a[data-vista]").forEach((a) =>
+    a.dataset.vista === v ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  const conFiltros = VISTAS_CON_FILTROS.includes(v);
+  $(".filters").hidden = !conFiltros;
+  $("#kpis").hidden = !conFiltros;
+  $(".layout").classList.toggle("sin-filtros", !conFiltros);
+  document.title = `${$(`#nav a[data-vista="${v}"]`).textContent} · Colegios Handihand`;
+  // Leaflet y Chart.js miden su contenedor: al aparecer la sección se recalculan
+  if (v === "dashboard" && map) {
+    map.invalidateSize();
+    if (encuadrePendiente) map.fitBounds(encuadrePendiente, { padding: [20, 20], maxZoom: 15 });
+    encuadrePendiente = null;
+  }
+  if (v === "estadisticas") { drawCharts(); Object.values(charts).forEach((c) => c.resize()); }
+  if (v === "registro") mapaDeRegistro();
+  if (enfocar) $(`#vista-${v}`).focus();
+}
+
+function irA(vista) {
+  cerrarMenu();
+  if (state.vista !== vista) {
+    state.vista = vista;
+    writeUrl({ push: true });
+  }
+  mostrarVista({ enfocar: true });
+}
+
+const menuAbierto = () => $("#menu").getAttribute("aria-expanded") === "true";
+
+function cerrarMenu(devolverFoco = false) {
+  if (!menuAbierto()) return;
+  $("#nav").classList.remove("abierta");
+  $("#menu").setAttribute("aria-expanded", "false");
+  if (devolverFoco) $("#menu").focus();
+}
+
+function bindNav() {
+  $("#menu").addEventListener("click", () => {
+    if (menuAbierto()) return cerrarMenu();
+    $("#nav").classList.add("abierta");
+    $("#menu").setAttribute("aria-expanded", "true");
+    $("#nav a[aria-current]")?.focus();
+  });
+  $("#nav").addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-vista]");
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; // abrir en otra pestaña sigue funcionando
+    e.preventDefault();
+    irA(a.dataset.vista);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menuAbierto()) cerrarMenu(true);
+  });
+}
+
+// ---------------------------------------------------------------- registro de colegios (HU-04)
+const CAMPOS_REGISTRO = ["nombre", "dependencia", "subsistema", "distrito_municipal", "direccion", "zona", "telefono", "niveles", "turnos", "lat", "lon"];
+let opcionesRegistro = null, catalogosCargados = false, // true también si la carga falló
+  puedeRegistrar = CONFIG.staticApi ? null : true;
+let mapaRegistro, marcadorRegistro;
+
+/** Mismas reglas y mensajes que POST /api/unidades; static-estado.js la usa para la página publicada.
+ *  Devuelve { campo: mensaje } (vacío si todo está bien). */
+function validarRegistro(b, op) {
+  const e = {};
+  const texto = (v) => (typeof v === "string" ? v.trim() : "");
+  const opcional = (v, max) => v == null || (typeof v === "string" && v.length <= max);
+  const deLista = (v, ops) => Array.isArray(v) && v.length > 0 && v.every((x) => ops.includes(x));
+  if (!texto(b.nombre) || texto(b.nombre).length > 200) e.nombre = "Escribe el nombre del colegio (hasta 200 caracteres)";
+  if (!op.dependencias.includes(b.dependencia)) e.dependencia = "Elige una dependencia de la lista";
+  if (!op.subsistemas.includes(b.subsistema)) e.subsistema = "Elige un subsistema de la lista";
+  if (!Number.isInteger(b.distrito_municipal) || !op.distritos.includes(b.distrito_municipal))
+    e.distrito_municipal = `Elige un distrito del ${op.distritos[0]} al ${op.distritos[op.distritos.length - 1]}`;
+  if (!texto(b.direccion) || texto(b.direccion).length > 300) e.direccion = "Escribe la dirección (hasta 300 caracteres)";
+  if (!opcional(b.zona, 120)) e.zona = "La zona admite hasta 120 caracteres";
+  if (!opcional(b.telefono, 40)) e.telefono = "El teléfono admite hasta 40 caracteres";
+  if (!deLista(b.niveles, op.niveles)) e.niveles = "Elige al menos un nivel de la lista";
+  if (!deLista(b.turnos, op.turnos)) e.turnos = "Elige al menos un turno de la lista";
+  for (const [c, nombre] of [["lat", "latitud"], ["lon", "longitud"]]) {
+    const [min, max] = op.area[c];
+    if (typeof b[c] !== "number" || !Number.isFinite(b[c])) e[c] = `Falta la ${nombre}: marca la ubicación en el mapa`;
+    else if (b[c] < min || b[c] > max)
+      e[c] = `La ubicación está fuera del área de la ciudad: la ${nombre} debe estar entre ${min.toFixed(2)} y ${max.toFixed(2)}`;
+  }
+  return e;
+}
+
+const opcionesSelect = (vals, text = label) =>
+  `<option value="">Elige…</option>` + vals.map((v) => `<option value="${esc(v)}">${esc(text(v))}</option>`).join("");
+const casillas = (name, vals) => vals.map((v) =>
+  `<label title="${esc(v)}"><input type="checkbox" name="${name}" value="${esc(v)}" aria-describedby="r-${name}-error">${esc(label(v))}</label>`).join("");
+
+/** Dibuja selects y casillas desde opciones_registro, sin perder lo que ya se había elegido. */
+function renderOpcionesRegistro(op) {
+  const form = $("#form-registro");
+  const antes = datosRegistro();
+  form.dependencia.innerHTML = opcionesSelect([...op.dependencias].sort(porOrden(ORDEN.dependencia)));
+  form.subsistema.innerHTML = opcionesSelect([...op.subsistemas].sort(porOrden(ORDEN.subsistema)));
+  form.distrito_municipal.innerHTML = opcionesSelect(op.distritos.map(String), (d) => `D-${d}`);
+  $("#r-niveles .chips").innerHTML = casillas("niveles", [...op.niveles].sort(porOrden(ORDEN.nivel)));
+  $("#r-turnos .chips").innerHTML = casillas("turnos", [...op.turnos].sort(porOrden(ORDEN.turno)));
+  form.dependencia.value = antes.dependencia ?? "";
+  form.subsistema.value = antes.subsistema ?? "";
+  form.distrito_municipal.value = String(antes.distrito_municipal ?? "");
+  form.querySelectorAll("fieldset input[type=checkbox]").forEach((i) => (i.checked = antes[i.name].includes(i.value)));
+}
+
+/** Cuerpo de POST /api/unidades a partir del formulario. */
+function datosRegistro() {
+  const f = $("#form-registro");
+  const opcional = (v) => v.trim() || null;
+  const numero = (v) => (v.trim() === "" ? null : Number(v));
+  const marcados = (name) => [...f.querySelectorAll(`input[name=${name}]:checked`)].map((i) => i.value);
+  return {
+    nombre: f.nombre.value.trim(), dependencia: f.dependencia.value, subsistema: f.subsistema.value,
+    distrito_municipal: f.distrito_municipal.value ? Number(f.distrito_municipal.value) : null,
+    direccion: f.direccion.value.trim(), zona: opcional(f.zona.value), telefono: opcional(f.telefono.value),
+    niveles: marcados("niveles"), turnos: marcados("turnos"), lat: numero(f.lat.value), lon: numero(f.lon.value),
+  };
+}
+
+const controlesDe = (campo) => (["niveles", "turnos"].includes(campo)
+  ? [...document.querySelectorAll(`#r-${campo} input`)] : [$(`#r-${campo}`)]);
+
+function errorDeCampo(campo, mensaje) {
+  const p = $(`#r-${campo}-error`);
+  p.textContent = mensaje || "";
+  p.hidden = !mensaje;
+  controlesDe(campo).forEach((c) => (mensaje ? c.setAttribute("aria-invalid", "true") : c.removeAttribute("aria-invalid")));
+}
+
+/** Muestra cada error junto a su campo; los que no corresponden a ningún campo van al aviso general. */
+function mostrarErroresRegistro(errores = {}) {
+  CAMPOS_REGISTRO.forEach((c) => errorDeCampo(c, errores[c]));
+  const otros = Object.entries(errores).filter(([c]) => !CAMPOS_REGISTRO.includes(c));
+  const hay = Object.keys(errores).length > 0;
+  estadoRegistro(hay ? `Revisa los datos del colegio${otros.length ? `: ${otros.map(([c, m]) => `${c}: ${m}`).join("; ")}` : " marcados en el formulario."}` : "");
+  const primero = CAMPOS_REGISTRO.find((c) => errores[c]);
+  if (primero) controlesDe(primero)[0]?.focus();
+}
+
+function estadoRegistro(texto, tipo = "error") {
+  const p = $("#registro-estado");
+  p.textContent = texto;
+  p.hidden = !texto;
+  p.className = tipo === "error" ? "error-inline" : "info";
+}
+
+/** Formulario visible sólo si hay opciones y dónde guardar (servidor, o base compartida en claude.ai). */
+function actualizarRegistro() {
+  const form = $("#form-registro");
+  if (puedeRegistrar === false) {
+    form.hidden = true;
+    return estadoRegistro("El registro de colegios sólo funciona en la versión con servidor o en la página publicada en claude.ai. Aquí los datos son de solo consulta.", "info");
+  }
+  if (!opcionesRegistro || puedeRegistrar == null) {
+    form.hidden = true;
+    return catalogosCargados && !opcionesRegistro
+      ? estadoRegistro("No se pudieron cargar las opciones del registro. Reintenta en unos segundos.")
+      : estadoRegistro("Cargando el formulario…", "info");
+  }
+  if (form.hidden) estadoRegistro("");
+  form.hidden = false;
+  if (state.vista === "registro") mapaDeRegistro();
+}
+
+/** Mapa pequeño para elegir la ubicación; se crea la primera vez que la sección está visible. */
+function mapaDeRegistro() {
+  if (typeof L === "undefined" || $("#form-registro").hidden) return;
+  if (mapaRegistro) return mapaRegistro.invalidateSize();
+  const area = opcionesRegistro?.area;
+  const bounds = area ? [[area.lat[0], area.lon[0]], [area.lat[1], area.lon[1]]] : CONFIG.areaBounds;
+  mapaRegistro = L.map("r-mapa").fitBounds(bounds);
+  capaBase(mapaRegistro, proveedores(), () => $("#r-mapa").classList.add("sin-mapa-base"));
+  L.rectangle(bounds, { color: cssVar("--accent"), weight: 1, fill: false, interactive: false, dashArray: "4 4" }).addTo(mapaRegistro);
+  mapaRegistro.on("click", (e) => ubicar(e.latlng, true));
+  new ResizeObserver(() => mapaRegistro.invalidateSize()).observe($("#r-mapa"));
+}
+
+/** Mueve el marcador; si la ubicación viene del mapa (clic o arrastre), también los campos. */
+function ubicar(ll, desdeMapa) {
+  const f = $("#form-registro");
+  if (desdeMapa) {
+    f.lat.value = ll.lat.toFixed(6);
+    f.lon.value = ll.lng.toFixed(6);
+    errorDeCampo("lat"); errorDeCampo("lon");
+  }
+  if (!mapaRegistro) return;
+  if (!marcadorRegistro) {
+    marcadorRegistro = L.marker(ll, { draggable: true, title: "Ubicación del colegio", alt: "Ubicación del colegio",
+      icon: L.divIcon({ className: "marcador-registro", iconSize: [18, 18] }) }).addTo(mapaRegistro);
+    marcadorRegistro.on("dragend", () => ubicar(marcadorRegistro.getLatLng(), true));
+  } else marcadorRegistro.setLatLng(ll);
+  if (!desdeMapa && !mapaRegistro.getBounds().contains(ll)) mapaRegistro.panTo(ll);
+}
+
+function limpiarRegistro() {
+  marcadorRegistro?.remove();
+  marcadorRegistro = null;
+  mostrarErroresRegistro({});
+}
+
+function mensajeRegistro(e) {
+  return {
+    0: "No se pudo conectar con el servidor. Revisa la conexión y reintenta.",
+    401: "Tu sesión venció: inicia sesión de nuevo para registrar colegios.",
+    403: "Tu usuario no tiene permiso para registrar colegios.",
+    422: `Revisa los datos del colegio (${e.message}).`,
+  }[e.status] || `No se pudo guardar el colegio (${e.message}). Reintenta en unos segundos.`;
+}
+
+async function guardarRegistro(ev) {
+  ev.preventDefault();
+  const form = $("#form-registro");
+  const body = datosRegistro();
+  $("#registro-ok").hidden = true;
+  const errores = validarRegistro(body, opcionesRegistro);
+  mostrarErroresRegistro(errores);
+  if (Object.keys(errores).length) return;
+  const botones = form.querySelectorAll("button");
+  botones.forEach((b) => (b.disabled = true));
+  form.setAttribute("aria-busy", "true");
+  let r;
+  try {
+    r = await post("unidades", body);
+  } catch (e) {
+    if (e.status === 422 && e.errores && Object.keys(e.errores).length) mostrarErroresRegistro(e.errores);
+    else estadoRegistro(mensajeRegistro(e));
+    return;
+  } finally {
+    botones.forEach((b) => (b.disabled = false));
+    form.removeAttribute("aria-busy");
+  }
+  form.reset(); // antes del aviso: el evento reset lo oculta
+  const ok = $("#registro-ok");
+  ok.innerHTML = `«${esc(r.unidad?.nombre ?? body.nombre)}» quedó registrado y ya aparece en indicadores, mapa y listado.
+    <button type="button" class="enlace" data-ver="${esc(r.id)}">Ver el colegio</button>`;
+  ok.hidden = false;
+  ok.querySelector("button").focus();
+  await loadCatalogos().catch(showError);
+  syncInputs();
+  refresh();
+}
+
+function bindRegistro() {
+  const form = $("#form-registro");
+  form.addEventListener("submit", guardarRegistro);
+  form.addEventListener("reset", () => { limpiarRegistro(); $("#registro-ok").hidden = true; });
+  // corregir un campo quita su error
+  form.addEventListener("input", (e) => {
+    const campo = e.target.name;
+    if (CAMPOS_REGISTRO.includes(campo)) errorDeCampo(campo);
+    if (campo === "lat" || campo === "lon") {
+      const [lat, lon] = [form.lat.value, form.lon.value].map((v) => (v.trim() === "" ? NaN : Number(v)));
+      if (Number.isFinite(lat) && Number.isFinite(lon) && typeof L !== "undefined") ubicar(L.latLng(lat, lon), false);
+    }
+  });
+  $("#registro-ok").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ver]");
+    if (b) showDetail(b.dataset.ver);
+  });
+}
+
 // ---------------------------------------------------------------- sesión (no aplica al modo estático)
 const irAlLogin = () => location.replace("login.html");
 let esEncargado = false;
@@ -548,18 +851,25 @@ let esEncargado = false;
 async function initSesion() {
   if (CONFIG.staticApi) {
     // sin servidor no hay login; si la página tiene dónde guardar (claude.ai), todos actúan como encargados
-    if (!CONFIG.staticEstado || !(await CONFIG.staticEstado.disponible())) return;
+    puedeRegistrar = !!CONFIG.staticEstado && (await CONFIG.staticEstado.disponible());
+    actualizarRegistro();
+    if (!puedeRegistrar) return;
     esEncargado = true;
     $("#bajas").hidden = false;
     loadBajas();
-    // la primera carga pudo hacerse antes de conocer las bajas: se vuelve a dibujar sin perder página ni filtros
-    if (CONFIG.staticApi("bajas").length) {
+    // la primera carga pudo hacerse antes de conocer bajas y registros: se vuelve a dibujar sin perder página ni filtros
+    if (CONFIG.staticApi("bajas").length || CONFIG.staticApi.cantidadRegistros()) {
       await loadCatalogos().catch(showError);
       syncInputs();
       await Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
     }
     // cambios de otros visitantes: se recargan indicadores, mapa, listado y la sección de bajas
     window.addEventListener("colegios:bajas", () => { refresh(); loadBajas(); });
+    window.addEventListener("colegios:registros", async () => {
+      await loadCatalogos().catch(showError);
+      syncInputs();
+      refresh();
+    });
     return;
   }
   setBusy(+1); // la sección de bajas depende del rol: la página no está lista hasta saberlo
@@ -628,8 +938,15 @@ function bindEvents() {
   });
   const dlg = $("#detalle");
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // clic en el fondo
-  window.addEventListener("popstate", () => { readUrl(); syncInputs(); refresh(); });
+  window.addEventListener("popstate", () => {
+    const antes = urlDe(VISTA_DEFAULT);
+    readUrl();
+    mostrarVista();
+    if (urlDe(VISTA_DEFAULT) !== antes) { syncInputs(); refresh(); } // sólo cambió la sección: no se recarga nada
+  });
   bindBajas();
+  bindNav();
+  bindRegistro();
 }
 
 async function init() {
@@ -637,6 +954,9 @@ async function init() {
   Chart.defaults.borderColor = cssVar("--line");
   readUrl();
   renderFiltrosActivos();
+  actualizarNav();
+  mostrarVista();
+  actualizarRegistro();
   // En pantallas chicas los filtros empiezan plegados, para ver primero los indicadores
   if (matchMedia("(max-width: 900px)").matches) $("#panel-filtros").open = false;
   bindEvents();
@@ -645,6 +965,8 @@ async function init() {
     await loadCatalogos();
   } catch (e) {
     showError(e);
+    catalogosCargados = true;
+    actualizarRegistro();
   }
   syncInputs();
   // Primera carga sin refresh(): respeta la página y el orden que traiga la URL compartida.

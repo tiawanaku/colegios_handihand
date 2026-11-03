@@ -9,11 +9,22 @@
 </head>
 <body>
 <header class="top">
+  <button id="menu" class="menu" type="button" aria-expanded="false" aria-controls="nav">☰ <span>Menú</span></button>
   <h1>Unidades Educativas · Handihand</h1>
   <div class="sesion" hidden><span id="sesion-nombre"></span><button id="salir" type="button">Salir</button></div>
 </header>
 
 <main class="layout">
+  <div class="lateral">
+  <nav id="nav" class="nav" aria-label="Secciones">
+    <ul>
+      <li><a href="./" data-vista="dashboard" aria-current="page">Dashboard</a></li>
+      <li><a href="?vista=registro" data-vista="registro">Registro</a></li>
+      <li><a href="?vista=modificacion" data-vista="modificacion">Modificación</a></li>
+      <li><a href="?vista=agenda" data-vista="agenda">Agenda</a></li>
+      <li><a href="?vista=estadisticas" data-vista="estadisticas">Estadísticas</a></li>
+    </ul>
+  </nav>
   <aside class="filters" aria-label="Filtros">
    <details id="panel-filtros" open>
     <summary>Filtros <span id="filtros-activos" class="muted"></span></summary>
@@ -28,48 +39,94 @@
     </div>
    </details>
   </aside>
+  </div>
 
   <section class="content" aria-busy="true">
     <div id="estado" class="estado" role="alert" hidden></div>
     <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
     <div class="kpis" id="kpis" aria-live="polite"></div>
 
-    <div class="grid2">
+    <div id="vista-dashboard" class="vista" role="region" aria-label="Dashboard" tabindex="-1">
       <div class="card"><h2>Mapa</h2><div class="map-wrap"><div id="map"></div><p id="map-vacio" class="map-vacio" hidden>Sin unidades con coordenadas para estos filtros.</p></div><div id="legend" class="legend"></div></div>
+      <div class="card">
+        <h2>Listado <span id="count" class="muted"></span></h2>
+        <div class="table-wrap">
+          <table id="tabla">
+            <thead><tr>
+              <th data-orden="nombre" aria-sort="ascending"><button type="button">Nombre</button></th>
+              <th data-orden="distrito_municipal" aria-sort="none"><button type="button">Dist.</button></th>
+              <th data-orden="dependencia" aria-sort="none"><button type="button">Dependencia</button></th>
+              <th>Dirección</th><th>Nivel</th><th>Turno</th>
+              <th data-orden="estudiantes_total" aria-sort="none" class="num col-matricula"><button type="button">Estudiantes</button></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pager"><button id="prev" type="button" aria-label="Página anterior">‹</button><span id="pageinfo" aria-live="polite"></span><button id="next" type="button" aria-label="Página siguiente">›</button></div>
+      </div>
+
+      <div class="card" id="bajas" hidden>
+        <h2>Colegios dados de baja <span id="bajas-count" class="muted"></span></h2>
+        <div id="bajas-confirmar" class="confirmar" role="group" aria-labelledby="bajas-confirmar-texto" hidden></div>
+        <p id="bajas-estado" class="muted" aria-live="polite"></p>
+        <div class="table-wrap">
+          <table id="tabla-bajas" hidden>
+            <thead><tr><th>Nombre</th><th>Dist.</th><th>Dependencia</th><th>Fecha de baja</th><th>Motivo</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="vista-estadisticas" class="vista" role="region" aria-label="Estadísticas" tabindex="-1" hidden>
       <div class="card"><h2>Unidades por distrito y dependencia</h2><canvas id="ch-distrito"></canvas></div>
-    </div>
-    <div class="grid2">
-      <div class="card"><h2>Dependencia</h2><canvas id="ch-dep"></canvas></div>
-      <div class="card"><h2>Oferta por nivel</h2><canvas id="ch-nivel"></canvas></div>
+      <div class="grid2">
+        <div class="card"><h2>Dependencia</h2><canvas id="ch-dep"></canvas></div>
+        <div class="card"><h2>Oferta por nivel</h2><canvas id="ch-nivel"></canvas></div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Listado <span id="count" class="muted"></span></h2>
-      <div class="table-wrap">
-        <table id="tabla">
-          <thead><tr>
-            <th data-orden="nombre" aria-sort="ascending"><button type="button">Nombre</button></th>
-            <th data-orden="distrito_municipal" aria-sort="none"><button type="button">Dist.</button></th>
-            <th data-orden="dependencia" aria-sort="none"><button type="button">Dependencia</button></th>
-            <th>Dirección</th><th>Nivel</th><th>Turno</th>
-            <th data-orden="estudiantes_total" aria-sort="none" class="num col-matricula"><button type="button">Estudiantes</button></th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
+    <div id="vista-registro" class="vista" role="region" aria-labelledby="registro-titulo" tabindex="-1" hidden>
+      <div class="card registro">
+        <h2 id="registro-titulo">Registrar un colegio nuevo</h2>
+        <div id="registro-ok" class="aviso" role="status" aria-live="polite" hidden></div>
+        <p id="registro-estado" class="error-inline" role="alert" hidden></p>
+        <form id="form-registro" novalidate hidden>
+          <p class="muted">Los campos marcados con * son obligatorios.</p>
+          <div class="campos">
+            <div class="campo ancho"><label for="r-nombre">Nombre *</label><input id="r-nombre" name="nombre" maxlength="200" autocomplete="off" aria-describedby="r-nombre-error"><p id="r-nombre-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-dependencia">Dependencia *</label><select id="r-dependencia" name="dependencia" aria-describedby="r-dependencia-error"></select><p id="r-dependencia-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-subsistema">Subsistema *</label><select id="r-subsistema" name="subsistema" aria-describedby="r-subsistema-error"></select><p id="r-subsistema-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-distrito_municipal">Distrito *</label><select id="r-distrito_municipal" name="distrito_municipal" aria-describedby="r-distrito_municipal-error"></select><p id="r-distrito_municipal-error" class="error-campo" hidden></p></div>
+            <div class="campo ancho"><label for="r-direccion">Dirección *</label><input id="r-direccion" name="direccion" maxlength="300" autocomplete="off" aria-describedby="r-direccion-error"><p id="r-direccion-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-zona">Zona</label><input id="r-zona" name="zona" maxlength="120" autocomplete="off" aria-describedby="r-zona-error"><p id="r-zona-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="r-telefono">Teléfono</label><input id="r-telefono" name="telefono" type="tel" maxlength="40" autocomplete="off" aria-describedby="r-telefono-error"><p id="r-telefono-error" class="error-campo" hidden></p></div>
+          </div>
+          <fieldset id="r-niveles"><legend>Niveles * <span class="muted">(al menos uno)</span></legend><div class="chips"></div><p id="r-niveles-error" class="error-campo" hidden></p></fieldset>
+          <fieldset id="r-turnos"><legend>Turnos * <span class="muted">(al menos uno)</span></legend><div class="chips"></div><p id="r-turnos-error" class="error-campo" hidden></p></fieldset>
+          <fieldset class="ubicacion"><legend>Ubicación *</legend>
+            <p id="r-mapa-ayuda" class="muted">Haga clic en el mapa para marcar el colegio (puede arrastrar el marcador) o escriba la latitud y la longitud.</p>
+            <div id="r-mapa" class="mapa-registro" role="application" aria-label="Mapa para elegir la ubicación" aria-describedby="r-mapa-ayuda"></div>
+            <div class="campos">
+              <div class="campo"><label for="r-lat">Latitud</label><input id="r-lat" name="lat" type="number" step="any" inputmode="decimal" aria-describedby="r-lat-error"><p id="r-lat-error" class="error-campo" hidden></p></div>
+              <div class="campo"><label for="r-lon">Longitud</label><input id="r-lon" name="lon" type="number" step="any" inputmode="decimal" aria-describedby="r-lon-error"><p id="r-lon-error" class="error-campo" hidden></p></div>
+            </div>
+          </fieldset>
+          <div class="acciones"><button id="r-guardar" type="submit" class="primario">Guardar colegio</button><button id="r-limpiar" type="reset">Limpiar</button></div>
+        </form>
       </div>
-      <div class="pager"><button id="prev" type="button" aria-label="Página anterior">‹</button><span id="pageinfo" aria-live="polite"></span><button id="next" type="button" aria-label="Página siguiente">›</button></div>
     </div>
 
-    <div class="card" id="bajas" hidden>
-      <h2>Colegios dados de baja <span id="bajas-count" class="muted"></span></h2>
-      <div id="bajas-confirmar" class="confirmar" role="group" aria-labelledby="bajas-confirmar-texto" hidden></div>
-      <p id="bajas-estado" class="muted" aria-live="polite"></p>
-      <div class="table-wrap">
-        <table id="tabla-bajas" hidden>
-          <thead><tr><th>Nombre</th><th>Dist.</th><th>Dependencia</th><th>Fecha de baja</th><th>Motivo</th><th><span class="sr-only">Acciones</span></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+    <div id="vista-modificacion" class="vista" role="region" aria-labelledby="modificacion-titulo" tabindex="-1" hidden>
+      <div class="card proximo"><h2 id="modificacion-titulo">Modificación</h2>
+        <p><strong>Disponible en el próximo sprint.</strong></p>
+        <p class="muted">Aquí se podrán corregir los datos de un colegio ya registrado (dirección, niveles, turnos y ubicación).</p></div>
+    </div>
+
+    <div id="vista-agenda" class="vista" role="region" aria-labelledby="agenda-titulo" tabindex="-1" hidden>
+      <div class="card proximo"><h2 id="agenda-titulo">Agenda</h2>
+        <p><strong>Disponible en el próximo sprint.</strong></p>
+        <p class="muted">Aquí se podrán anotar y consultar las visitas y actividades programadas con cada colegio.</p></div>
     </div>
   </section>
 </main>

@@ -52,7 +52,8 @@ python -m app.backend.auth listar
 Roles: `consulta` (por defecto) sólo ve el dashboard; `encargado` además puede dar de baja y reactivar colegios.
 `listar` muestra el rol de cada usuario.
 
-La BD del sistema guarda también las bajas lógicas de colegios (`unidad_estado` y su historial `unidad_estado_historial`):
+La BD del sistema guarda también las bajas lógicas de colegios (`unidad_estado` y su historial `unidad_estado_historial`)
+y los colegios registrados desde el dashboard (`unidad_registrada`):
 la BD de cuidados no se modifica. Las tablas se crean al arrancar; si una tabla existente necesita una columna nueva,
 el archivo SQLite se respalda antes en `<archivo>.bak-<fecha>` (en PostgreSQL, haga un `pg_dump` antes de desplegar).
 
@@ -84,5 +85,6 @@ La página estática (`app.build_static`) no tiene login: quien tenga el archivo
 | `GET /api/export.{csv,xlsx,pdf}` | Exportación (el PDF sigue el formato del "Reporte de Unidades Educativas" original). Sin botones en la interfaz |
 | `POST /api/unidades/{id}/baja` · `POST /api/unidades/{id}/alta` | Baja lógica y reactivación con `confirmar: true` (rol encargado) |
 | `GET /api/bajas` · `GET /api/unidades/{id}/historial` | Colegios dados de baja e historial de altas y bajas (rol encargado) |
+| `POST /api/unidades` | Registra un colegio nuevo (cualquier usuario con sesión). Se guarda en la tabla propia `unidad_registrada` (ids desde 1.000.000) y aparece en todo el dashboard. Errores: 422 `{detail, errores: {campo: mensaje}}`. Ver `docs/04-frontend.md` |
 
 Todos aceptan los filtros `dependencia`, `distrito`, `nivel` y `turno` (repetibles), además de `subsistema`, `q`, `bbox` y `con_coordenadas`.

@@ -56,6 +56,18 @@ mapa, estadísticas, catálogos, exportaciones y la página estática. La consul
 Las tablas se crean al arrancar; si hay que alterar una tabla existente de una BD SQLite (p. ej. agregar `usuario.rol`)
 se copia antes a `<archivo>.bak-<fecha>`. En PostgreSQL haga un `pg_dump` antes de desplegar.
 
+**Colegios registrados (HU-04).** Los colegios nuevos que se registran desde el dashboard (`POST /api/unidades`) tampoco
+se escriben en `core_*` ni en la vista: van a la tabla propia `unidad_registrada` de la BD del sistema.
+
+| Tabla | Columnas |
+|---|---|
+| `unidad_registrada` | `id` (PK sin secuencia: `max(999999, max(id)) + 1`, así los ids empiezan en 1.000.000 y no chocan con `core_institucion.id`), `nombre`, `dependencia`, `subsistema`, `niveles` y `turnos` (listas separadas por comas), `distrito_municipal`, `zona`, `direccion`, `telefono`, `lat`, `lon`, `usuario` (quién lo registró), `creado` (UTC) |
+
+`app/backend/registro.py` valida y guarda; `main.py` los combina con la vista en Python (unidades, mapa, estadísticas,
+catálogos, ficha, bajas, exportaciones y la página estática). Las bajas de `unidad_estado` también aplican a ellos.
+La tabla se crea al arrancar si no existe (no altera las demás). Si el colegio luego se carga en la BD de cuidados,
+quedaría duplicado: hay que darlo de baja en el dashboard.
+
 Cómo probarlo: `COLEGIOS_PG_TEST_URL=... pytest tests/test_postgres_cuidados.py` compara la API con consultas directas al EAV (11 pruebas; todas pasan con este dump).
 
 ## Problemas de calidad de datos encontrados

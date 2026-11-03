@@ -3,11 +3,17 @@
 // (GitHub Pages, un artifact, un USB) sin servidor:
 //   window.COLEGIOS_CONFIG = { staticApi: createStaticApi(filas) };
 // Las exportaciones CSV/XLSX/PDF necesitan el backend y no existen en este modo.
-function createStaticApi(todas) {
+function createStaticApi(filas) {
   // Colegios dados de baja (id → {fecha, motivo, usuario}); los carga static-estado.js cuando hay dónde
   // guardarlos. Igual que el backend: no salen en listados, mapa, estadísticas ni catálogos.
   let bajas = new Map();
-  let rows = todas;
+  // Colegios registrados en la página (ids ≥ 1.000.000, `registrado: true`): se mezclan con los demás en todo.
+  let registros = [];
+  let todas = filas, rows = filas;
+  const actualizar = () => {
+    todas = registros.length ? [...filas, ...registros] : filas;
+    rows = todas.filter((r) => !bajas.has(r.id));
+  };
   const lista = (csv) => (csv ? String(csv).split(",").filter(Boolean) : []);
   const up = (v) => String(v).toUpperCase();
   const sinDato = (v) => (v == null || v === "" ? "SIN DATO" : v);
@@ -66,6 +72,12 @@ function createStaticApi(todas) {
       distritos: [...new Set(rows.map((r) => r.distrito_municipal).filter((d) => d != null))].sort((a, b) => a - b),
       niveles: set((r) => lista(r.niveles)), turnos: set((r) => lista(r.turnos)), subsistemas: set((r) => lista(r.subsistema)),
       campos: { matricula: rows.some((r) => r.estudiantes_total != null) },
+      // igual que el backend: listas fijas, salvo los niveles (los que existen en los datos)
+      opciones_registro: {
+        dependencias: ["FISCAL", "CONVENIO", "PRIVADA"], subsistemas: ["REGULAR", "ALTERNATIVA", "ESPECIAL", "PERMANENTE"],
+        turnos: ["MAÑANA", "TARDE", "NOCHE"], niveles: set((r) => lista(r.niveles)),
+        distritos: Array.from({ length: 14 }, (_, i) => i + 1), area: { lat: [-16.65, -16.40], lon: [-68.35, -68.05] },
+      },
     };
   }
 
@@ -112,6 +124,9 @@ function createStaticApi(todas) {
   }
   staticApi.existe = (id) => todas.some((r) => r.id === id);
   staticApi.estaDeBaja = (id) => bajas.has(id);
-  staticApi.setBajas = (mapa) => { bajas = new Map(mapa); rows = todas.filter((r) => !bajas.has(r.id)); };
+  staticApi.setBajas = (mapa) => { bajas = new Map(mapa); actualizar(); };
+  staticApi.setRegistros = (lista) => { registros = [...lista]; actualizar(); };
+  staticApi.agregarRegistro = (r) => { registros = [...registros.filter((x) => x.id !== r.id), r]; actualizar(); };
+  staticApi.cantidadRegistros = () => registros.length;
   return staticApi;
 }

@@ -449,3 +449,203 @@ def test_pagina_estatica_sin_bajas(client):
     client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "x", "confirmar": True})
     filas = build_static.filas()
     assert len(filas) == 179 and ue["id"] not in {f["id"] for f in filas}
+
+
+# ---------------------------------------------------------------- HU-04: registrar colegios nuevos
+def colegio(**cambios):
+    datos = {"nombre": "U.E. NUEVA ESPERANZA", "dependencia": "FISCAL", "subsistema": "REGULAR",
+             "distrito_municipal": 8, "direccion": "Av. Siempre Viva 742", "zona": "Villa Nueva",
+             "telefono": "2-2223344", "niveles": ["INICIAL", "PRIMARIA"], "turnos": ["TARDE", "MAÑANA"],
+             "lat": -16.52, "lon": -68.15}
+    datos.update(cambios)
+    return {k: v for k, v in datos.items() if v is not ...}
+
+
+def test_registro_aparece_en_indicadores_mapa_y_listado(client):
+    total = client.get("/api/estadisticas").json()["total_unidades"]
+    r = client.post("/api/unidades", json=colegio())
+    assert r.status_code == 201
+    cuerpo = r.json()
+    assert cuerpo["ok"] is True and cuerpo["id"] == 1_000_000 and cuerpo["unidad"]["id"] == 1_000_000
+    ficha = client.get("/api/unidades/1000000").json()
+    assert ficha == cuerpo["unidad"]
+    assert ficha["registrado"] is True and "fuente" not in ficha
+    assert ficha["registro"]["usuario"] == "analista" and ficha["registro"]["fecha"].endswith("+00:00")
+    assert (ficha["nombre"], ficha["dependencia"], ficha["distrito_municipal"]) == ("U.E. NUEVA ESPERANZA", "FISCAL", 8)
+    assert (ficha["niveles"], ficha["turnos"], ficha["lat"], ficha["lon"]) == ("INICIAL,PRIMARIA", "MAÑANA,TARDE", -16.52, -68.15)
+    assert "registrado" not in client.get(f"/api/unidades/{una_unidad(client)['id']}").json()
+
+    s = client.get("/api/estadisticas").json()
+    assert s["total_unidades"] == total + 1 and sum(s["por_dependencia"].values()) == total + 1
+    assert s["por_turno"]["MAÑANA"] == 1
+    assert visible(client, ficha) == (total + 1, True)   # mapa, listado y búsqueda por nombre
+    assert [x["id"] for x in client.get("/api/unidades", params={"q": "nueva esperanza"}).json()["results"]] == [1_000_000]
+    feat = [f for f in client.get("/api/geojson").json()["features"] if f["properties"]["id"] == 1_000_000][0]
+    assert feat["geometry"]["coordinates"] == [-68.15, -16.52]
+    # los filtros también se aplican a los registrados
+    ids = lambda **p: {x["id"] for x in client.get("/api/unidades", params={**p, "page_size": 500}).json()["results"]}
+    assert 1_000_000 in ids(dependencia="FISCAL", distrito=8, nivel="INICIAL", turno="MAÑANA", subsistema="REGULAR")
+    for p in ({"dependencia": "PRIVADA"}, {"distrito": 3}, {"nivel": "SECUNDARIA"}, {"turno": "NOCHE"},
+              {"con_coordenadas": False}, {"bbox": "-68.2,-16.52,-68.18,-16.49"}, {"q": "no-existe"}):
+        assert 1_000_000 not in ids(**p), p
+        assert 1_000_000 not in {f["properties"]["id"] for f in client.get("/api/geojson", params=p).json()["features"]}
+    assert client.get("/api/estadisticas", params={"dependencia": "PRIVADA"}).json()["total_unidades"] < total
+
+
+def test_registro_ids_consecutivos_y_paginacion_combinada(client):
+    for i, nombre in enumerate(["AAA PRIMERO", "ZZZ ULTIMO", "MMM MEDIO"]):
+        r = client.post("/api/unidades", json=colegio(nombre=nombre))
+        assert r.status_code == 201 and r.json()["id"] == 1_000_000 + i
+    total = client.get("/api/estadisticas").json()["total_unidades"]
+    for orden in ("nombre", "-nombre", "distrito_municipal", "-estudiantes_total", "dependencia"):
+        paginas = [client.get("/api/unidades", params={"orden": orden, "page": p, "page_size": 50}).json() for p in (1, 2, 3, 4)]
+        assert {pg["count"] for pg in paginas} == {total}
+        filas = [x for pg in paginas for x in pg["results"]]
+        assert len(filas) == total == len({x["id"] for x in filas})
+        campo = orden.lstrip("-")
+        valores = [x[campo] for x in filas if x[campo] is not None]
+        assert valores == sorted(valores, reverse=orden.startswith("-"))
+        assert all(x[campo] is None for x in filas[len(valores):])   # nulos al final
+    nombres = [x["nombre"] for x in client.get("/api/unidades", params={"page_size": 500}).json()["results"]]
+    assert nombres[0] == "AAA PRIMERO" and nombres[-1] == "ZZZ ULTIMO"
+
+
+@pytest.mark.parametrize("cambios,campo", [
+    ({"lat": -16.30}, "lat"), ({"lat": -16.70}, "lat"), ({"lon": -68.40}, "lon"), ({"lon": -68.00}, "lon"),
+    ({"lat": None}, "lat"), ({"lon": "x"}, "lon"), ({"lat": ...}, "lat"), ({"lat": True}, "lat"),
+    ({"niveles": []}, "niveles"), ({"niveles": ...}, "niveles"), ({"niveles": "PRIMARIA"}, "niveles"),
+    ({"niveles": ["A,B"]}, "niveles"), ({"niveles": [" "]}, "niveles"), ({"niveles": ["x" * 101]}, "niveles"),
+    ({"turnos": []}, "turnos"), ({"turnos": ...}, "turnos"), ({"turnos": ["MADRUGADA"]}, "turnos"),
+    ({"turnos": ["MAÑANA", 1]}, "turnos"),
+    ({"dependencia": "COMUNITARIA"}, "dependencia"), ({"dependencia": ...}, "dependencia"),
+    ({"subsistema": "OTRO"}, "subsistema"),
+    ({"distrito_municipal": 0}, "distrito_municipal"), ({"distrito_municipal": 15}, "distrito_municipal"),
+    ({"distrito_municipal": "8"}, "distrito_municipal"), ({"distrito_municipal": 8.5}, "distrito_municipal"),
+    ({"nombre": ""}, "nombre"), ({"nombre": "   "}, "nombre"), ({"nombre": ...}, "nombre"),
+    ({"nombre": "x" * 201}, "nombre"), ({"nombre": 5}, "nombre"),
+    ({"direccion": ""}, "direccion"), ({"direccion": "x" * 256}, "direccion"), ({"telefono": "1" * 51}, "telefono"),
+])
+def test_registro_invalido_no_guarda(client, cambios, campo):
+    total = client.get("/api/estadisticas").json()["total_unidades"]
+    r = client.post("/api/unidades", json=colegio(**cambios))
+    assert r.status_code == 422
+    assert r.json()["detail"] == "Revise los datos del colegio"
+    assert list(r.json()["errores"]) == [campo] and r.json()["errores"][campo]
+    assert client.get("/api/estadisticas").json()["total_unidades"] == total
+    assert client.get("/api/unidades/1000000").status_code == 404
+
+
+def test_registro_mensajes_y_cuerpos_malformados(client):
+    r = client.post("/api/unidades", json=colegio(lat=-16.0, niveles=[], turnos=[], nombre=""))
+    assert r.json()["errores"] == {"nombre": "Escriba el nombre del colegio", "niveles": "Elija al menos un nivel",
+                                   "turnos": "Elija al menos un turno",
+                                   "lat": "La ubicación está fuera del área de la ciudad"}
+    for cuerpo in ("{no es json", "[1, 2]", "null", '"texto"', "[" * 100_000, "[" * 5000 + "]" * 5000, b"\xff"):
+        r = client.post("/api/unidades", content=cuerpo, headers={"content-type": "application/json"})
+        assert r.status_code == 422 and r.json()["detail"] == "Revise los datos del colegio"
+        assert set(r.json()["errores"]) == {"general"}
+    r = client.post("/api/unidades", json={})
+    assert set(r.json()["errores"]) == {"nombre", "dependencia", "distrito_municipal", "direccion", "niveles",
+                                        "turnos", "lat", "lon"}   # subsistema es opcional
+    assert client.get("/api/unidades/1000000").status_code == 404
+
+
+def test_registro_opcionales_y_normalizacion(client):
+    r = client.post("/api/unidades", json=colegio(subsistema=..., zona="", telefono=None, dependencia=" convenio ",
+                                                  turnos=["noche", "NOCHE"], niveles=["PRIMARIA", "PRIMARIA"],
+                                                  nombre="  U.E. <script>alert(1)</script> ", extra="ignorado"))
+    assert r.status_code == 201
+    u = r.json()["unidad"]
+    assert (u["subsistema"], u["zona"], u["telefono"], u["dependencia"]) == ("REGULAR", None, None, "CONVENIO")
+    assert (u["turnos"], u["niveles"]) == ("NOCHE", "PRIMARIA")
+    assert u["nombre"] == "U.E. <script>alert(1)</script>"   # se guarda tal cual: el frontend escapa
+    assert "extra" not in u
+
+
+def test_registro_exige_sesion(client):
+    client.post("/api/auth/logout")
+    r = client.post("/api/unidades", json=colegio())
+    assert r.status_code == 401 and r.json() == {"detail": "Sesión requerida"}
+    como(client, "encargada", "encargado")
+    assert client.get("/api/unidades/1000000").status_code == 404
+
+
+def test_registro_cualquier_usuario_y_sin_login(client, monkeypatch):
+    from app.backend import auth
+
+    monkeypatch.setenv("COLEGIOS_TODOS_ENCARGADOS", "0")
+    assert client.get("/api/auth/sesion").json()["rol"] == "consulta"   # no hace falta ser encargado
+    assert client.post("/api/unidades", json=colegio()).status_code == 201
+    monkeypatch.setattr(auth, "AUTH_ENABLED", False)
+    client.cookies.clear()
+    r = client.post("/api/unidades", json=colegio(nombre="U.E. DEV"))
+    assert r.status_code == 201 and r.json()["unidad"]["registro"]["usuario"] == "dev"
+
+
+def test_registrado_baja_alta_y_exportes(client):
+    from app import build_static
+
+    total = client.get("/api/estadisticas").json()["total_unidades"]
+    ue = client.post("/api/unidades", json=colegio(nombre="U.E. EXPORTABLE")).json()["unidad"]
+    csv_texto = client.get("/api/export.csv").text
+    assert csv_texto.count("\n") == total + 2 and "U.E. EXPORTABLE" in csv_texto
+    assert "U.E. EXPORTABLE" in client.get("/api/export.csv", params={"q": "exportable"}).text
+    assert client.get("/api/export.csv", params={"q": "exportable"}).text.count("\n") == 2
+    assert client.get("/api/export.xlsx").status_code == 200 and client.get("/api/export.pdf").status_code == 200
+    fila = [f for f in build_static.filas() if f["id"] == ue["id"]]
+    assert fila and fila[0]["registrado"] is True and fila[0]["nombre"] == "U.E. EXPORTABLE"
+    assert "clave" not in fila[0] and "fuente" not in fila[0]
+
+    url = f"/api/unidades/{ue['id']}"
+    assert client.post(f"{url}/baja", json={"motivo": "Error de carga", "confirmar": True}).status_code == 200
+    assert visible(client, ue) == (total, False)
+    assert "U.E. EXPORTABLE" not in client.get("/api/export.csv").text
+    assert ue["id"] not in {f["id"] for f in build_static.filas()}
+    assert client.get(url).json()["baja"]["motivo"] == "Error de carga"
+    assert client.get("/api/bajas").json()[0] | {"fecha_baja": None} == {
+        "id": ue["id"], "nombre": "U.E. EXPORTABLE", "distrito_municipal": 8, "dependencia": "FISCAL",
+        "fecha_baja": None, "motivo": "Error de carga", "usuario": "analista"}
+    assert client.post(f"{url}/alta", json={"confirmar": True}).status_code == 200
+    assert visible(client, ue) == (total + 1, True)
+    assert [h["accion"] for h in client.get(f"{url}/historial").json()] == ["alta", "baja"]
+    assert client.post("/api/unidades/1000001/baja", json={"motivo": "x", "confirmar": True}).status_code == 404
+
+
+def test_catalogos_opciones_registro(client):
+    c = client.get("/api/catalogos").json()
+    assert c["opciones_registro"] == {
+        "dependencias": ["FISCAL", "CONVENIO", "PRIVADA"],
+        "subsistemas": ["REGULAR", "ALTERNATIVA", "ESPECIAL", "PERMANENTE"],
+        "turnos": ["MAÑANA", "TARDE", "NOCHE"],
+        "niveles": sorted(c["niveles"]),
+        "distritos": list(range(1, 15)),
+        "area": {"lat": [-16.65, -16.40], "lon": [-68.35, -68.05]},
+    }
+    assert c["opciones_registro"]["niveles"] == c["niveles"] and c["niveles"]
+    client.post("/api/unidades", json=colegio(niveles=["TÉCNICO MEDIO"], turnos=["MAÑANA"], dependencia="PRIVADA",
+                                              subsistema="PERMANENTE", distrito_municipal=14))
+    c2 = client.get("/api/catalogos").json()
+    assert "TÉCNICO MEDIO" in c2["niveles"] and c2["opciones_registro"]["niveles"] == sorted(c["niveles"] + ["TÉCNICO MEDIO"])
+    assert "MAÑANA" in c2["turnos"] and "PERMANENTE" in c2["subsistemas"] and 14 in c2["distritos"]
+
+
+def test_tabla_registrados_se_crea_sin_destruir(tmp_path):
+    import sqlite3
+
+    from sqlalchemy import create_engine, inspect
+
+    from app.backend import auth
+
+    db = tmp_path / "sprint1.db"
+    with sqlite3.connect(db) as con:   # BD del sistema del sprint 1: sin unidad_registrada
+        con.execute("CREATE TABLE unidad_estado (ue_id INTEGER PRIMARY KEY, activo BOOLEAN NOT NULL, "
+                    "fecha_baja DATETIME, motivo VARCHAR, usuario VARCHAR)")
+        con.execute("INSERT INTO unidad_estado VALUES (5, 0, '2026-01-01', 'cerró', 'ana')")
+    engine = create_engine(f"sqlite:///{db}")
+    auth.init_auth_db(engine)
+    assert "unidad_registrada" in inspect(engine).get_table_names()
+    columnas = {c["name"] for c in inspect(engine).get_columns("unidad_registrada")}
+    assert columnas == {"id", "nombre", "dependencia", "subsistema", "niveles", "turnos", "distrito_municipal",
+                        "zona", "direccion", "telefono", "lat", "lon", "usuario", "creado"}
+    with sqlite3.connect(db) as con:
+        assert con.execute("SELECT ue_id, motivo FROM unidad_estado").fetchall() == [(5, "cerró")]

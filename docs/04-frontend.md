@@ -43,16 +43,16 @@ Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de ca
 
 | Endpoint | Respuesta mínima |
 |---|---|
-| `GET /catalogos` | `{dependencias, subsistemas, niveles, turnos: [str], distritos: [int], campos: {matricula: bool}}`. Si `matricula` es `false`, se ocultan el KPI de estudiantes, la columna y el orden por estudiantes |
+| `GET /catalogos` | `{dependencias, subsistemas, niveles, turnos: [str], distritos: [int], campos: {matricula: bool}, opciones_registro}`. Si `matricula` es `false`, se ocultan el KPI de estudiantes, la columna y el orden por estudiantes. `opciones_registro` se describe en "Registrar colegios" |
 | `GET /estadisticas?<filtros>` | `{total_unidades, por_dependencia: {DEP: n}, por_nivel: {NIVEL: n}, por_distrito: {"8": {DEP: n}}, estudiantes: {total}, ratio_estudiante_docente}` |
 | `GET /geojson?<filtros>` | `FeatureCollection` de puntos con `properties: {id, nombre, dependencia}` |
 | `GET /unidades?<filtros>&page&page_size&orden` | `{count, results: [{id, nombre, distrito_municipal, dependencia, direccion, niveles, turnos, estudiantes_total}]}`. `orden` puede ser `nombre`, `distrito_municipal`, `dependencia` o `estudiantes_total`, con `-` delante para orden descendente |
-| `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran) |
+| `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran). Un colegio registrado desde el dashboard trae además `registrado: true` y `registro: {usuario, fecha}`; los de la vista no traen esas claves |
 | `GET /export.{csv,xlsx,pdf}?<filtros>` | Archivo. Siguen en el backend (exigen sesión) para los futuros informes; la interfaz ya no muestra botones de exportar |
 | `GET /auth/sesion` | `{requerida, usuario, nombre, rol}`. `rol` es `"consulta"` o `"encargado"` (null sin sesión). Con el login desactivado: `{requerida: false, usuario: null, nombre: null, rol: "encargado"}` |
 
 Las unidades dadas de baja **no aparecen** en `/unidades`, `/geojson`, `/estadisticas`, `/catalogos` ni `/export.*`.
-`GET /unidades/{id}` sí devuelve una unidad dada de baja, con `baja: {fecha, motivo, usuario}` (la clave no existe si está activa).
+Esto vale también para los colegios registrados (ver abajo). `GET /unidades/{id}` sí devuelve una unidad dada de baja, con `baja: {fecha, motivo, usuario}` (la clave no existe si está activa).
 
 ### Baja y alta (rol encargado)
 
@@ -66,6 +66,54 @@ Sin sesión responden 401; con rol `consulta`, 403 (el rol se revisa antes que e
 | `GET /unidades/{id}/historial` | | `[{accion: "baja" \| "alta", motivo, usuario, fecha}]`, lo más reciente primero (`motivo` es null en las altas); 404 si no existe |
 
 Cada baja o alta guarda el usuario de la sesión (`"dev"` con el login desactivado) y la fecha. Los errores llegan como `{detail}`; en los 422 de validación del cuerpo, `detail` puede ser una lista (formato de FastAPI).
+
+### Registrar colegios (cualquier usuario con sesión)
+
+`POST /unidades` con cuerpo JSON. Sin sesión responde 401 (`{detail: "Sesión requerida"}`); no exige el rol encargado.
+Con el login desactivado se permite y el usuario es `"dev"`.
+
+| Campo | Regla |
+|---|---|
+| `nombre` | texto obligatorio, hasta 200 caracteres (se quitan los espacios de los extremos) |
+| `dependencia` | `"FISCAL"`, `"CONVENIO"` o `"PRIVADA"` |
+| `subsistema` | opcional (por defecto `"REGULAR"`): `"REGULAR"`, `"ALTERNATIVA"`, `"ESPECIAL"` o `"PERMANENTE"` |
+| `distrito_municipal` | entero de 1 a 14 (un string `"8"` o `8.5` no valen) |
+| `direccion` | texto obligatorio, hasta 255 caracteres |
+| `zona` | texto o null, hasta 200 caracteres (vacío = null) |
+| `telefono` | texto o null, hasta 50 caracteres (vacío = null) |
+| `niveles` | lista con al menos un texto no vacío, sin comas, de hasta 100 caracteres (los repetidos se quitan) |
+| `turnos` | lista con al menos un valor de `"MAÑANA"`, `"TARDE"`, `"NOCHE"` (se guardan en ese orden y sin repetir) |
+| `lat`, `lon` | números dentro del área: lat de −16.65 a −16.40, lon de −68.35 a −68.05 (los extremos valen) |
+
+`dependencia`, `subsistema` y `turnos` se aceptan en minúsculas o con espacios y se guardan en mayúsculas. Los campos
+desconocidos se ignoran.
+
+- **201** `{ok: true, id, unidad}`. `unidad` es el registro tal como lo devuelve `GET /unidades/{id}` (con
+  `registrado: true`). Los ids empiezan en 1.000.000 y son consecutivos.
+- **422** `{detail: "Revise los datos del colegio", errores: {campo: mensaje}}`, con un mensaje en español por campo con
+  problema y las claves del cuerpo (`nombre`, `dependencia`, `subsistema`, `distrito_municipal`, `direccion`, `zona`,
+  `telefono`, `niveles`, `turnos`, `lat`, `lon`). Si el cuerpo no es un objeto JSON (mal formado, lista, null o de más de
+  64 KB) la clave es `general`. Ejemplos: `lat: "La ubicación está fuera del área de la ciudad"`, `lat: "Marque la
+  ubicación en el mapa"` (falta o no es número), `niveles: "Elija al menos un nivel"`, `turnos: "Elija al menos un turno"`.
+  Esta forma es distinta de los 422 de FastAPI y no se crea nada.
+
+`GET /catalogos` trae las opciones del formulario en `opciones_registro`:
+
+```json
+{"dependencias": ["FISCAL", "CONVENIO", "PRIVADA"],
+ "subsistemas": ["REGULAR", "ALTERNATIVA", "ESPECIAL", "PERMANENTE"],
+ "turnos": ["MAÑANA", "TARDE", "NOCHE"],
+ "niveles": ["..."],
+ "distritos": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+ "area": {"lat": [-16.65, -16.40], "lon": [-68.35, -68.05]}}
+```
+
+`niveles` es la misma lista que `catalogos.niveles`: los niveles de los colegios activos (vista y registrados),
+ordenados con `sorted()` de Python.
+
+Los registrados se combinan con la vista en `/unidades` (filtros, `q`, orden y paginación sobre el conjunto combinado),
+`/geojson`, `/estadisticas`, `/catalogos`, `/unidades/{id}`, `/bajas`, `/export.*` y en las filas de la página estática
+(`build_static.filas()`, con `registrado: true`). Se pueden dar de baja y de alta como cualquier colegio.
 
 `niveles` y `turnos` son strings separados por comas: pueden ser códigos (`INICIAL`) o los valores del catálogo de la BD de cuidados (`PRIMARIA COMUNITARIA VOCACIONAL`). Las etiquetas salen del diccionario `LABEL` de `app.js`; un valor desconocido en MAYÚSCULAS se muestra en tipo oración, y el orden lógico está en `ORDEN`.
 
