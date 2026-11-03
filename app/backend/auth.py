@@ -4,6 +4,8 @@ Los usuarios viven en una BD aparte (COLEGIOS_AUTH_DB, por defecto SQLite en app
 la BD de datos puede ser la vista de sólo lectura sobre cuidados y no debe recibir tablas nuevas.
 
     python -m app.backend.auth crear admin --nombre "Administrador"   # pide la contraseña
+    python -m app.backend.auth crear ana --rol encargado               # puede dar de baja/alta colegios
+    python -m app.backend.auth rol ana encargado|consulta
     python -m app.backend.auth clave admin                             # cambia la contraseña
     python -m app.backend.auth desactivar admin
     python -m app.backend.auth listar
@@ -24,12 +26,14 @@ import hmac
 import logging
 import os
 import secrets
+import shutil
 import sys
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import Engine, inspect, text
 from sqlalchemy.orm import registry
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
@@ -62,6 +66,7 @@ class Usuario(AuthModel, table=True):
     nombre: str | None = None
     clave_hash: str
     activo: bool = True
+    rol: str = Field(default="consulta", description="consulta | encargado")
     creado: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -70,8 +75,32 @@ auth_engine = create_engine(
 )
 
 
-def init_auth_db() -> None:
-    AuthModel.metadata.create_all(auth_engine)
+ROLES = ("consulta", "encargado")
+
+
+def respaldar(engine: Engine) -> Path | None:
+    """Copia el archivo SQLite a <archivo>.bak-<fecha> antes de alterar una tabla existente.
+    En PostgreSQL el respaldo (pg_dump) es responsabilidad del despliegue."""
+    db = engine.url.database
+    if engine.url.get_backend_name() != "sqlite" or not db or db == ":memory:" or not Path(db).exists():
+        return None
+    destino = Path(f"{db}.bak-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}")
+    shutil.copy2(db, destino)
+    log.warning("Respaldo de la BD del sistema antes de migrar: %s", destino)
+    return destino
+
+
+def init_auth_db(engine: Engine | None = None) -> None:
+    """Crea las tablas que falten y agrega columnas nuevas a las existentes (con respaldo previo)."""
+    from . import estado  # noqa: F401  (registra unidad_estado y su historial en AuthModel)
+
+    engine = engine or auth_engine
+    AuthModel.metadata.create_all(engine)
+    columnas = {c["name"] for c in inspect(engine).get_columns("usuario")}
+    if "rol" not in columnas:
+        respaldar(engine)
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE usuario ADD COLUMN rol VARCHAR NOT NULL DEFAULT 'consulta'"))
 
 
 # ---------------------------------------------------------------- contraseñas
@@ -167,6 +196,10 @@ def main(argv: list[str] | None = None) -> None:
     c = sub.add_parser("crear")
     c.add_argument("usuario")
     c.add_argument("--nombre")
+    c.add_argument("--rol", choices=ROLES, default="consulta")
+    r = sub.add_parser("rol")
+    r.add_argument("usuario")
+    r.add_argument("nuevo_rol", choices=ROLES)
     sub.add_parser("clave").add_argument("usuario")
     sub.add_parser("desactivar").add_argument("usuario")
     sub.add_parser("activar").add_argument("usuario")
@@ -176,18 +209,20 @@ def main(argv: list[str] | None = None) -> None:
     with Session(auth_engine) as s:
         if args.cmd == "listar":
             for u in s.exec(select(Usuario).order_by(Usuario.usuario)):
-                print(f"{u.usuario:20} {'activo' if u.activo else 'INACTIVO':9} {u.nombre or ''}")
+                print(f"{u.usuario:20} {'activo' if u.activo else 'INACTIVO':9} {u.rol:10} {u.nombre or ''}")
             return
         nombre = args.usuario.strip().lower()
         u = s.exec(select(Usuario).where(Usuario.usuario == nombre)).first()
         if args.cmd == "crear":
             if u:
                 sys.exit(f"El usuario {nombre} ya existe")
-            u = Usuario(usuario=nombre, nombre=args.nombre, clave_hash=hash_clave(_pedir_clave()))
+            u = Usuario(usuario=nombre, nombre=args.nombre, rol=args.rol, clave_hash=hash_clave(_pedir_clave()))
         elif u is None:
             sys.exit(f"No existe el usuario {nombre}")
         elif args.cmd == "clave":
             u.clave_hash = hash_clave(_pedir_clave())
+        elif args.cmd == "rol":
+            u.rol = args.nuevo_rol
         else:
             u.activo = args.cmd == "activar"
         s.add(u)

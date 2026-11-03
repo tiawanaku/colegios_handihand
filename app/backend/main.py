@@ -16,10 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import literal
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 from sqlmodel import Session, col, func, or_, select
 
-from . import auth
+from . import auth, estado
 from .db import engine, init_db
 from .models import UnidadEducativa
 from .pdf_report import build_pdf
@@ -75,7 +75,7 @@ def login(datos: Credenciales, request: Request):
         auth.registrar_fallo(ip)
         raise HTTPException(401, "Usuario o contraseña incorrectos")
     auth.limpiar_fallos(ip)
-    resp = JSONResponse({"usuario": u.usuario, "nombre": u.nombre})
+    resp = JSONResponse({"usuario": u.usuario, "nombre": u.nombre, "rol": u.rol})
     resp.set_cookie(auth.COOKIE, auth.crear_token(u), max_age=auth.DURACION, httponly=True,
                     samesite="lax", secure=request.url.scheme == "https", path="/")
     return resp
@@ -90,9 +90,27 @@ def logout():
 
 @app.get("/api/auth/sesion", tags=["sesión"])
 def sesion(request: Request):
-    """Usuario de la sesión actual (null si no hay). `requerida` es false si el login está desactivado."""
-    u = auth.leer_token(request.cookies.get(auth.COOKIE)) if auth.AUTH_ENABLED else None
-    return {"requerida": auth.AUTH_ENABLED, "usuario": u and u.usuario, "nombre": u and u.nombre}
+    """Usuario de la sesión actual (null si no hay). `requerida` es false si el login está desactivado,
+    y entonces el rol es `encargado` (modo desarrollo)."""
+    if not auth.AUTH_ENABLED:
+        return {"requerida": False, "usuario": None, "nombre": None, "rol": "encargado"}
+    u = auth.leer_token(request.cookies.get(auth.COOKIE))
+    return {"requerida": True, "usuario": u and u.usuario, "nombre": u and u.nombre, "rol": u and u.rol}
+
+
+def exigir_encargado(request: Request) -> str:
+    """Usuario que firma el cambio. El middleware ya garantizó la sesión; aquí se exige el rol."""
+    if not auth.AUTH_ENABLED:
+        return "dev"
+    u = getattr(request.state, "usuario", None)
+    if u is None:
+        raise HTTPException(401, "Sesión requerida")
+    if u.rol != "encargado":
+        raise HTTPException(403, "Se requiere el rol de encargado")
+    return u.usuario
+
+
+EncargadoDep = Annotated[str, Depends(exigir_encargado)]
 
 
 def get_session():
@@ -101,6 +119,12 @@ def get_session():
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def solo_activas(stmt):
+    """Excluye las unidades dadas de baja (tabla propia en la BD del sistema, no en la vista)."""
+    bajas = estado.ids_de_baja()
+    return stmt.where(col(UnidadEducativa.id).not_in(bajas)) if bajas else stmt
 
 
 def _en_lista(column, valores: list[str]):
@@ -128,6 +152,7 @@ class Filtros:
 
     def apply(self, stmt):
         U = UnidadEducativa
+        stmt = solo_activas(stmt)
         if self.dependencia:
             stmt = stmt.where(col(U.dependencia).in_([d.upper() for d in self.dependencia]))
         if self.distrito:
@@ -187,7 +212,75 @@ def detalle(ue_id: int, session: SessionDep):
     row = session.get(UnidadEducativa, ue_id)
     if row is None:
         raise HTTPException(404, "Unidad educativa no encontrada")
-    return row.model_dump(exclude=OCULTOS)
+    datos = row.model_dump(exclude=OCULTOS)
+    if (e := estado.de_baja(ue_id)) is not None:
+        datos["baja"] = {"fecha": estado.iso(e.fecha_baja), "motivo": e.motivo, "usuario": e.usuario}
+    return datos
+
+
+class Baja(BaseModel):
+    motivo: str | None = None
+    confirmar: StrictBool | None = None
+
+
+class Alta(BaseModel):
+    confirmar: StrictBool | None = None
+
+
+def _confirmada(confirmar: bool | None) -> None:
+    # la confirmación del diálogo también se exige en el servidor
+    if confirmar is not True:
+        raise HTTPException(422, "Debe confirmar la operación (confirmar: true)")
+
+
+def _existente(session: Session, ue_id: int) -> None:
+    if session.get(UnidadEducativa, ue_id) is None:
+        raise HTTPException(404, "Unidad educativa no encontrada")
+
+
+@app.post("/api/unidades/{ue_id}/baja", tags=["estado"])
+def dar_baja(ue_id: int, datos: Baja, session: SessionDep, usuario: EncargadoDep):
+    _confirmada(datos.confirmar)
+    motivo = (datos.motivo or "").strip()
+    if not motivo or len(motivo) > 300:
+        raise HTTPException(422, "El motivo es obligatorio (máximo 300 caracteres)")
+    _existente(session, ue_id)
+    try:
+        estado.dar_baja(ue_id, motivo, usuario)
+    except estado.Conflicto as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True, "id": ue_id, "estado": "baja"}
+
+
+@app.post("/api/unidades/{ue_id}/alta", tags=["estado"])
+def dar_alta(ue_id: int, datos: Alta, session: SessionDep, usuario: EncargadoDep):
+    _confirmada(datos.confirmar)
+    _existente(session, ue_id)
+    try:
+        estado.dar_alta(ue_id, usuario)
+    except estado.Conflicto as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True, "id": ue_id, "estado": "activa"}
+
+
+@app.get("/api/unidades/{ue_id}/historial", tags=["estado"])
+def historial(ue_id: int, session: SessionDep, _usuario: EncargadoDep):
+    _existente(session, ue_id)
+    return estado.historial(ue_id)
+
+
+@app.get("/api/bajas", tags=["estado"])
+def listar_bajas(session: SessionDep, _usuario: EncargadoDep):
+    """Unidades dadas de baja, la más reciente primero. Nombre y demás datos salen de la vista."""
+    filas = estado.bajas()
+    U = UnidadEducativa
+    unidades = {u.id: u for u in session.exec(select(U).where(col(U.id).in_([f.ue_id for f in filas])))} if filas else {}
+    return [
+        {"id": f.ue_id, "nombre": (u := unidades.get(f.ue_id)) and u.nombre,
+         "distrito_municipal": u and u.distrito_municipal, "dependencia": u and u.dependencia,
+         "fecha_baja": estado.iso(f.fecha_baja), "motivo": f.motivo, "usuario": f.usuario}
+        for f in filas
+    ]
 
 
 @app.get("/api/geojson", tags=["mapa"])
@@ -249,14 +342,14 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
 @app.get("/api/catalogos", tags=["indicadores"])
 def catalogos(session: SessionDep):
     U = UnidadEducativa
-    distritos = session.exec(select(U.distrito_municipal).where(col(U.distrito_municipal).is_not(None)).distinct()).all()
+    distritos = session.exec(solo_activas(select(U.distrito_municipal).where(col(U.distrito_municipal).is_not(None)).distinct())).all()
     niveles, turnos, subsistemas = set(), set(), set()
-    for n, t, sub in session.exec(select(U.niveles, U.turnos, U.subsistema)).all():
+    for n, t, sub in session.exec(solo_activas(select(U.niveles, U.turnos, U.subsistema))).all():
         niveles.update(filter(None, (n or "").split(",")))
         turnos.update(filter(None, (t or "").split(",")))
         subsistemas.update(filter(None, (sub or "").split(",")))
-    deps = session.exec(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct()).all()
-    con_matricula = session.exec(select(U.id).where(col(U.estudiantes_total).is_not(None)).limit(1)).first() is not None
+    deps = session.exec(solo_activas(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct())).all()
+    con_matricula = session.exec(solo_activas(select(U.id).where(col(U.estudiantes_total).is_not(None))).limit(1)).first() is not None
     return {"dependencias": sorted(deps), "distritos": sorted(distritos), "niveles": sorted(niveles),
             "turnos": sorted(turnos), "subsistemas": sorted(subsistemas),
             "campos": {"matricula": con_matricula}}

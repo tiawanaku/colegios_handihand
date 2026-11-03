@@ -43,6 +43,19 @@ Decisiones de la vista:
 - `telefono` concatena los arrays jsonb `telefono` y `celular`.
 - `actualizado` es la última fecha de `core_historicalinstitucion`.
 
+**Bajas lógicas (HU-02).** La vista no cambia y la BD de cuidados sigue siendo de solo lectura. La baja de un colegio
+se guarda en tablas propias de la BD del sistema (`COLEGIOS_AUTH_DB`, la misma de los usuarios):
+
+| Tabla | Columnas |
+|---|---|
+| `unidad_estado` | `ue_id` (PK, = `unidad_educativa.id`), `activo`, `fecha_baja`, `motivo`, `usuario` |
+| `unidad_estado_historial` | `id`, `ue_id`, `accion` (`baja` \| `alta`), `motivo`, `usuario`, `fecha` (UTC) |
+
+El backend (`solo_activas` en `main.py`, `app/backend/estado.py`) excluye esos ids con `id NOT IN (...)` en unidades,
+mapa, estadísticas, catálogos, exportaciones y la página estática. La consulta de los dados de baja es `GET /api/bajas`.
+Las tablas se crean al arrancar; si hay que alterar una tabla existente de una BD SQLite (p. ej. agregar `usuario.rol`)
+se copia antes a `<archivo>.bak-<fecha>`. En PostgreSQL haga un `pg_dump` antes de desplegar.
+
 Cómo probarlo: `COLEGIOS_PG_TEST_URL=... pytest tests/test_postgres_cuidados.py` compara la API con consultas directas al EAV (11 pruebas; todas pasan con este dump).
 
 ## Problemas de calidad de datos encontrados

@@ -42,11 +42,19 @@ El dashboard y toda la API `/api/*` exigen iniciar sesión (`/login.html`). Los 
 La sesión es una cookie `HttpOnly` firmada que dura 8 h; 5 intentos fallidos desde una IP la bloquean 15 min.
 
 ```bash
-python -m app.backend.auth crear <usuario> [--nombre "Nombre"]   # alta
+python -m app.backend.auth crear <usuario> [--nombre "Nombre"] [--rol encargado]   # alta
+python -m app.backend.auth rol <usuario> encargado|consulta     # cambiar rol
 python -m app.backend.auth clave <usuario>                        # cambiar contraseña
 python -m app.backend.auth desactivar|activar <usuario>
 python -m app.backend.auth listar
 ```
+
+Roles: `consulta` (por defecto) sólo ve el dashboard; `encargado` además puede dar de baja y reactivar colegios.
+`listar` muestra el rol de cada usuario.
+
+La BD del sistema guarda también las bajas lógicas de colegios (`unidad_estado` y su historial `unidad_estado_historial`):
+la BD de cuidados no se modifica. Las tablas se crean al arrancar; si una tabla existente necesita una columna nueva,
+el archivo SQLite se respalda antes en `<archivo>.bak-<fecha>` (en PostgreSQL, haga un `pg_dump` antes de desplegar).
 
 | Variable | Uso |
 |---|---|
@@ -72,6 +80,8 @@ La página estática (`app.build_static`) no tiene login: quien tenga el archivo
 | `GET /api/geojson` | Puntos para el mapa |
 | `GET /api/estadisticas` | KPIs, dependencia, distrito × dependencia, nivel, turno, matrícula |
 | `GET /api/catalogos` | Valores de los filtros |
-| `GET /api/export.{csv,xlsx,pdf}` | Exportación (el PDF sigue el formato del "Reporte de Unidades Educativas" original) |
+| `GET /api/export.{csv,xlsx,pdf}` | Exportación (el PDF sigue el formato del "Reporte de Unidades Educativas" original). Sin botones en la interfaz |
+| `POST /api/unidades/{id}/baja` · `POST /api/unidades/{id}/alta` | Baja lógica y reactivación con `confirmar: true` (rol encargado) |
+| `GET /api/bajas` · `GET /api/unidades/{id}/historial` | Colegios dados de baja e historial de altas y bajas (rol encargado) |
 
 Todos aceptan los filtros `dependencia`, `distrito`, `nivel` y `turno` (repetibles), además de `subsistema`, `q`, `bbox` y `con_coordenadas`.

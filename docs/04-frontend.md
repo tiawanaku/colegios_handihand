@@ -48,7 +48,24 @@ Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de ca
 | `GET /geojson?<filtros>` | `FeatureCollection` de puntos con `properties: {id, nombre, dependencia}` |
 | `GET /unidades?<filtros>&page&page_size&orden` | `{count, results: [{id, nombre, distrito_municipal, dependencia, direccion, niveles, turnos, estudiantes_total}]}`. `orden` puede ser `nombre`, `distrito_municipal`, `dependencia` o `estudiantes_total`, con `-` delante para orden descendente |
 | `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran) |
-| `GET /export.{csv,xlsx,pdf}?<filtros>` | Archivo (los botones sólo arman el enlace) |
+| `GET /export.{csv,xlsx,pdf}?<filtros>` | Archivo. Siguen en el backend (exigen sesión) para los futuros informes; la interfaz ya no muestra botones de exportar |
+| `GET /auth/sesion` | `{requerida, usuario, nombre, rol}`. `rol` es `"consulta"` o `"encargado"` (null sin sesión). Con el login desactivado: `{requerida: false, usuario: null, nombre: null, rol: "encargado"}` |
+
+Las unidades dadas de baja **no aparecen** en `/unidades`, `/geojson`, `/estadisticas`, `/catalogos` ni `/export.*`.
+`GET /unidades/{id}` sí devuelve una unidad dada de baja, con `baja: {fecha, motivo, usuario}` (la clave no existe si está activa).
+
+### Baja y alta (rol encargado)
+
+Sin sesión responden 401; con rol `consulta`, 403 (el rol se revisa antes que el cuerpo). Fechas en ISO 8601 UTC (`2026-11-03T15:04:05.123456+00:00`).
+
+| Endpoint | Cuerpo | Respuesta |
+|---|---|---|
+| `POST /unidades/{id}/baja` | `{motivo: str, confirmar: true}` | 200 `{ok: true, id, estado: "baja"}`. 422 si `confirmar` no es exactamente `true` o el motivo está vacío o pasa de 300 caracteres; 404 si no existe; 409 si ya estaba de baja |
+| `POST /unidades/{id}/alta` | `{confirmar: true}` | 200 `{ok: true, id, estado: "activa"}`. 422 sin confirmar; 404; 409 si no estaba de baja |
+| `GET /bajas` | | `[{id, nombre, distrito_municipal, dependencia, fecha_baja, motivo, usuario}]`, la baja más reciente primero |
+| `GET /unidades/{id}/historial` | | `[{accion: "baja" \| "alta", motivo, usuario, fecha}]`, lo más reciente primero (`motivo` es null en las altas); 404 si no existe |
+
+Cada baja o alta guarda el usuario de la sesión (`"dev"` con el login desactivado) y la fecha. Los errores llegan como `{detail}`; en los 422 de validación del cuerpo, `detail` puede ser una lista (formato de FastAPI).
 
 `niveles` y `turnos` son strings separados por comas: pueden ser códigos (`INICIAL`) o los valores del catálogo de la BD de cuidados (`PRIMARIA COMUNITARIA VOCACIONAL`). Las etiquetas salen del diccionario `LABEL` de `app.js`; un valor desconocido en MAYÚSCULAS se muestra en tipo oración, y el orden lógico está en `ORDEN`.
 

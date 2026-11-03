@@ -3,7 +3,7 @@
     COLEGIOS_DB=postgresql+psycopg://usuario@host/cuidados python -m app.build_static dist/colegios.html
     python -m app.build_static dist/colegios.html --fragment   # sin <html>/<head>/<body> (p. ej. claude.ai)
 
-Lee la tabla/vista `unidad_educativa` de COLEGIOS_DB, la incrusta como JSON y usa static-api.js para
+Lee la tabla/vista `unidad_educativa` de COLEGIOS_DB (sin las dadas de baja en COLEGIOS_AUTH_DB), la incrusta como JSON y usa static-api.js para
 responder la misma API en el navegador. Leaflet y Chart.js se cargan de jsDelivr; su CSS va incrustado.
 Incluye mapa base (OpenStreetMap y, si no carga, CARTO); si ninguno está disponible se dibujan rótulos
 de distrito. Pasa --sin-tiles para no pedir mapas base externos.
@@ -15,8 +15,10 @@ import json
 import re
 from pathlib import Path
 
-from sqlmodel import Session, select
+from sqlalchemy import inspect
+from sqlmodel import Session, col, select
 
+from .backend import auth, estado
 from .backend.db import engine
 from .backend.main import EXPORT_FIELDS
 from .backend.models import UnidadEducativa
@@ -27,8 +29,11 @@ CHART_JS = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"
 
 
 def filas() -> list[dict]:
+    # sin las dadas de baja, igual que la API (si la BD del sistema aún no tiene la tabla, no hay bajas)
+    bajas = estado.ids_de_baja() if inspect(auth.auth_engine).has_table("unidad_estado") else set()
     with Session(engine) as s:
-        rows = s.exec(select(UnidadEducativa).order_by(UnidadEducativa.id)).all()
+        rows = s.exec(select(UnidadEducativa).where(col(UnidadEducativa.id).not_in(bajas))
+                      .order_by(UnidadEducativa.id)).all()
     return [{k: v for k, v in r.model_dump().items() if k in EXPORT_FIELDS and v is not None} for r in rows]
 
 

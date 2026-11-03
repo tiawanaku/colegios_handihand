@@ -200,7 +200,7 @@ def test_sin_sesion_api_401_y_dashboard_redirige(client):
     assert r.status_code == 303 and r.headers["location"] == "/login.html"
     assert client.get("/login.html").status_code == 200        # el login y sus recursos son públicos
     assert client.get("/styles.css").status_code == 200
-    assert client.get("/api/auth/sesion").json() == {"requerida": True, "usuario": None, "nombre": None}
+    assert client.get("/api/auth/sesion").json() == {"requerida": True, "usuario": None, "nombre": None, "rol": None}
 
 
 def test_login_y_logout(client):
@@ -261,7 +261,15 @@ def test_cli_crear_usuario(client, monkeypatch, capsys):
     auth.main(["desactivar", "nuevo"])
     assert auth.autenticar("nuevo", "otra-clave-1") is None
     auth.main(["listar"])
-    assert "INACTIVO" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "INACTIVO" in out and "consulta" in out
+    auth.main(["crear", "jefa", "--rol", "encargado"])
+    assert auth.autenticar("jefa", "otra-clave-1").rol == "encargado"
+    auth.main(["rol", "nuevo", "encargado"])
+    auth.main(["activar", "nuevo"])
+    assert auth.autenticar("nuevo", "otra-clave-1").rol == "encargado"
+    with pytest.raises(SystemExit):
+        auth.main(["rol", "nuevo", "admin"])
 
 
 def test_fuente_no_se_expone(client):
@@ -270,3 +278,163 @@ def test_fuente_no_se_expone(client):
     assert "fuente" not in r and "fuente" not in client.get(f"/api/unidades/{r['id']}").json()
     assert "fuentes" not in client.get("/api/catalogos").json()
     assert "fuente" not in client.get("/api/export.csv").text.splitlines()[0]
+
+
+# ---------------------------------------------------------------- HU-01: exportación sólo por backend
+def test_exportes_siguen_en_backend_y_exigen_sesion(client):
+    for fmt in ("csv", "xlsx", "pdf"):
+        assert client.get(f"/api/export.{fmt}").status_code == 200
+    client.post("/api/auth/logout")
+    for fmt in ("csv", "xlsx", "pdf"):
+        r = client.get(f"/api/export.{fmt}")
+        assert r.status_code == 401 and r.json() == {"detail": "Sesión requerida"}
+
+
+# ---------------------------------------------------------------- HU-02: baja y alta de colegios
+def como(client, usuario, rol):
+    nuevo_usuario(usuario, "clave-segura-2", rol=rol)
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={"usuario": usuario, "clave": "clave-segura-2"}).json()["rol"] == rol
+
+
+def una_unidad(client):
+    return client.get("/api/unidades", params={"page_size": 1, "con_coordenadas": True}).json()["results"][0]
+
+
+def visible(client, ue):
+    stats = client.get("/api/estadisticas").json()
+    ids_mapa = {f["properties"]["id"] for f in client.get("/api/geojson").json()["features"]}
+    ids_lista = {r["id"] for r in client.get("/api/unidades", params={"page_size": 500}).json()["results"]}
+    ids_q = {r["id"] for r in client.get("/api/unidades", params={"q": ue["nombre"]}).json()["results"]}
+    assert (ue["id"] in ids_mapa) == (ue["id"] in ids_lista) == (ue["id"] in ids_q)
+    return stats["total_unidades"], ue["id"] in ids_lista
+
+
+def test_baja_oculta_y_alta_restituye(client):
+    como(client, "encargada", "encargado")
+    ue = una_unidad(client)
+    assert visible(client, ue) == (180, True)
+    r = client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "  Cerró en 2026 ", "confirmar": True})
+    assert r.status_code == 200 and r.json() == {"ok": True, "id": ue["id"], "estado": "baja"}
+    assert visible(client, ue) == (179, False)
+    assert sum(client.get("/api/estadisticas").json()["por_dependencia"].values()) == 179
+    assert client.get("/api/export.csv").text.count("\n") == 180
+    ficha = client.get(f"/api/unidades/{ue['id']}").json()   # la ficha sigue disponible, marcada
+    assert ficha["baja"]["motivo"] == "Cerró en 2026" and ficha["baja"]["usuario"] == "encargada"
+    assert ficha["baja"]["fecha"].endswith("+00:00")
+    bajas = client.get("/api/bajas").json()
+    assert bajas == [{"id": ue["id"], "nombre": ue["nombre"], "distrito_municipal": ue["distrito_municipal"],
+                      "dependencia": ue["dependencia"], "fecha_baja": ficha["baja"]["fecha"],
+                      "motivo": "Cerró en 2026", "usuario": "encargada"}]
+
+    r = client.post(f"/api/unidades/{ue['id']}/alta", json={"confirmar": True})
+    assert r.status_code == 200 and r.json() == {"ok": True, "id": ue["id"], "estado": "activa"}
+    assert visible(client, ue) == (180, True)
+    assert "baja" not in client.get(f"/api/unidades/{ue['id']}").json()
+    assert client.get("/api/bajas").json() == []
+    hist = client.get(f"/api/unidades/{ue['id']}/historial").json()
+    assert [(h["accion"], h["usuario"]) for h in hist] == [("alta", "encargada"), ("baja", "encargada")]
+    assert hist[1]["motivo"] == "Cerró en 2026" and all(h["fecha"] for h in hist)
+
+
+def test_baja_excluye_de_catalogos(client):
+    como(client, "encargada", "encargado")
+    client.importer.upsert([{"nombre": "UE UNICA", "dist": 99, "dependencia": "COMUNITARIA"}], "t")
+    ue = client.get("/api/unidades", params={"q": "UE UNICA"}).json()["results"][0]
+    assert 99 in client.get("/api/catalogos").json()["distritos"]
+    client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "x", "confirmar": True})
+    c = client.get("/api/catalogos").json()
+    assert 99 not in c["distritos"] and "COMUNITARIA" not in c["dependencias"]
+
+
+@pytest.mark.parametrize("body", [{"motivo": "x"}, {"motivo": "x", "confirmar": False},
+                                  {"motivo": "x", "confirmar": "true"}, {"motivo": "x", "confirmar": 1},
+                                  {"motivo": "  ", "confirmar": True}, {"confirmar": True},
+                                  {"motivo": "x" * 301, "confirmar": True}])
+def test_baja_exige_confirmacion_y_motivo(client, body):
+    como(client, "encargada", "encargado")
+    ue = una_unidad(client)
+    assert client.post(f"/api/unidades/{ue['id']}/baja", json=body).status_code == 422
+    assert visible(client, ue) == (180, True)
+    assert client.get(f"/api/unidades/{ue['id']}/historial").json() == []
+
+
+def test_alta_exige_confirmacion_404_y_409(client):
+    como(client, "encargada", "encargado")
+    ue = una_unidad(client)
+    url = f"/api/unidades/{ue['id']}"
+    assert client.post(f"{url}/alta", json={"confirmar": True}).status_code == 409       # no estaba de baja
+    assert client.post(f"{url}/baja", json={"motivo": "x", "confirmar": True}).status_code == 200
+    assert client.post(f"{url}/baja", json={"motivo": "x", "confirmar": True}).status_code == 409
+    for body in ({}, {"confirmar": False}):
+        assert client.post(f"{url}/alta", json=body).status_code == 422
+    assert visible(client, ue)[1] is False
+    assert client.post("/api/unidades/999999/baja", json={"motivo": "x", "confirmar": True}).status_code == 404
+    assert client.post("/api/unidades/999999/alta", json={"confirmar": True}).status_code == 404
+    assert client.get("/api/unidades/999999/historial").status_code == 404
+
+
+def test_endpoints_de_encargado_exigen_sesion_y_rol(client):
+    ue = una_unidad(client)
+    url = f"/api/unidades/{ue['id']}"
+    llamadas = [("post", f"{url}/baja", {"motivo": "x", "confirmar": True}), ("post", f"{url}/alta", {"confirmar": True}),
+                ("get", "/api/bajas", None), ("get", f"{url}/historial", None)]
+    assert client.get("/api/auth/sesion").json()["rol"] == "consulta"   # el usuario del fixture
+    for metodo, ruta, body in llamadas:
+        r = getattr(client, metodo)(ruta, **({"json": body} if body else {}))
+        assert r.status_code == 403 and r.json()["detail"] == "Se requiere el rol de encargado"
+    assert client.post(f"{url}/baja", json={}).status_code == 403          # el rol se revisa antes que el cuerpo
+    client.post("/api/auth/logout")
+    for metodo, ruta, body in llamadas:
+        assert getattr(client, metodo)(ruta, **({"json": body} if body else {})).status_code == 401
+    como(client, "encargada", "encargado")
+    assert visible(client, ue) == (180, True)                               # nada cambió
+
+
+def test_sin_login_rol_encargado_y_usuario_dev(client, monkeypatch):
+    from app.backend import auth
+
+    monkeypatch.setattr(auth, "AUTH_ENABLED", False)
+    client.cookies.clear()
+    assert client.get("/api/auth/sesion").json() == {"requerida": False, "usuario": None, "nombre": None,
+                                                     "rol": "encargado"}
+    ue = una_unidad(client)
+    assert client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "prueba", "confirmar": True}).status_code == 200
+    assert client.get("/api/bajas").json()[0]["usuario"] == "dev"
+    assert client.get(f"/api/unidades/{ue['id']}/historial").json()[0]["usuario"] == "dev"
+
+
+def test_migracion_agrega_rol_con_respaldo(tmp_path):
+    import sqlite3
+
+    from sqlalchemy import create_engine, inspect
+
+    from app.backend import auth
+
+    db = tmp_path / "viejo.db"
+    with sqlite3.connect(db) as con:   # esquema anterior a HU-02: sin rol
+        con.execute("CREATE TABLE usuario (id INTEGER PRIMARY KEY, usuario VARCHAR UNIQUE, nombre VARCHAR, "
+                    "clave_hash VARCHAR NOT NULL, activo BOOLEAN NOT NULL, creado DATETIME NOT NULL)")
+        con.execute("INSERT INTO usuario VALUES (1, 'viejo', NULL, 'h', 1, '2026-01-01')")
+    engine = create_engine(f"sqlite:///{db}")
+    auth.init_auth_db(engine)
+    assert [p.name.startswith("viejo.db.bak-") for p in tmp_path.iterdir()].count(True) == 1
+    with sqlite3.connect(next(tmp_path.glob("viejo.db.bak-*"))) as con:   # el respaldo es el esquema anterior
+        assert "rol" not in {r[1] for r in con.execute("PRAGMA table_info(usuario)")}
+    tablas = set(inspect(engine).get_table_names())
+    assert {"usuario", "unidad_estado", "unidad_estado_historial"} <= tablas
+    with sqlite3.connect(db) as con:
+        assert con.execute("SELECT usuario, rol FROM usuario").fetchall() == [("viejo", "consulta")]
+    auth.init_auth_db(engine)                          # idempotente: ya migrada, no vuelve a respaldar
+    assert len(list(tmp_path.glob("viejo.db.bak-*"))) == 1
+
+
+def test_pagina_estatica_sin_bajas(client):
+    from app import build_static
+
+    como(client, "encargada", "encargado")
+    ue = una_unidad(client)
+    assert len(build_static.filas()) == 180
+    client.post(f"/api/unidades/{ue['id']}/baja", json={"motivo": "x", "confirmar": True})
+    filas = build_static.filas()
+    assert len(filas) == 179 and ue["id"] not in {f["id"] for f in filas}
