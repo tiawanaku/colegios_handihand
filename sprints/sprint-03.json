@@ -1,0 +1,134 @@
+{
+  "formato": "sprint-handihand/1",
+  "proyecto": "colegios_handihand",
+  "sprint": 3,
+  "objetivo": "Corregir los datos de los colegios y organizar visitas y reuniones en una agenda.",
+  "inicio": "2026-12-01",
+  "fin": "2026-12-12",
+  "dod": [
+    "Criterios de aceptación de cada historia verificados y aprobados por el cliente",
+    "Código revisado por otro desarrollador y fusionado a la rama principal",
+    "Pruebas automáticas y manuales aprobadas en escritorio y celular, modo claro y oscuro",
+    "Migraciones de base de datos probadas en un entorno de pruebas y con respaldo antes de aplicarlas en producción",
+    "Endpoints nuevos protegidos con autenticación y rol, y con registro de quién y cuándo realizó cada cambio",
+    "Desplegado en el entorno de pruebas y demostrado en la revisión del sprint",
+    "Documentación breve actualizada (cambios en la vista SQL y en la API)"
+  ],
+  "equipo": {
+    "DEV1": {
+      "agente": "dev1-handihand",
+      "rol": "Backend y datos"
+    },
+    "DEV2": {
+      "agente": "dev2-handihand",
+      "rol": "Frontend y experiencia"
+    }
+  },
+  "nota": "Acta N.º 2 aprobada por la dueña del proyecto sin firma del cliente. Sprint planificado, sin ejecutar.",
+  "historias": [
+    {
+      "codigo": "HU-05",
+      "titulo": "Modificar datos de colegios",
+      "prioridad": "SHOULD",
+      "puntos": 8,
+      "como": "encargado de la base de datos",
+      "quiero": "corregir los datos de un colegio existente (teléfono, dirección, turno y otros)",
+      "para": "mantener la información al día",
+      "criterios": [
+        "Dado que abro la ficha de un colegio, cuando edito y guardo, entonces los nuevos datos se ven en todo el sistema",
+        "Dado que guardo un cambio, entonces queda registrado quién y cuándo lo hizo",
+        "Dado que no inicié sesión, entonces no puedo modificar"
+      ],
+      "tareas": [
+        {
+          "id": "HU-05#1",
+          "titulo": "Correcciones guardadas como capa propia sobre la vista (y edición directa de los registrados), con historial de quién y cuándo",
+          "tipo": "backend",
+          "horas": 8,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-05#2",
+          "titulo": "Edición desde la ficha del colegio, con validación y recarga",
+          "tipo": "frontend",
+          "horas": 6,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-05#3",
+          "titulo": "Pruebas: el cambio se ve en todo el sistema, queda en el historial y exige sesión",
+          "tipo": "pruebas",
+          "horas": 3,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "codigo": "HU-06",
+      "titulo": "Agenda de visitas y reuniones",
+      "prioridad": "SHOULD",
+      "puntos": 13,
+      "como": "técnico o encargado",
+      "quiero": "agendar visitas a colegios y reuniones con fecha, hora y colegio relacionado",
+      "para": "organizar el trabajo de campo",
+      "criterios": [
+        "Dado que creo una visita o reunión, entonces aparece en la agenda en su fecha",
+        "Dado que una visita es a un colegio, entonces puedo verla desde la ficha de ese colegio",
+        "Dado que cambio o cancelo una cita, entonces la agenda se actualiza"
+      ],
+      "tareas": [
+        {
+          "id": "HU-06#1",
+          "titulo": "Tabla propia de citas (visita o reunión, fecha, hora, colegio opcional, notas)",
+          "tipo": "datos",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-06#2",
+          "titulo": "API de agenda: crear, listar por rango, modificar y cancelar; sesión obligatoria",
+          "tipo": "backend",
+          "horas": 8,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-06#3",
+          "titulo": "Sección Agenda con vista de calendario semanal y mensual, y formulario de cita",
+          "tipo": "frontend",
+          "horas": 10,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-06#4",
+          "titulo": "Citas del colegio en su ficha",
+          "tipo": "frontend",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-06#5",
+          "titulo": "Pruebas e2e y de API de la agenda",
+          "tipo": "pruebas",
+          "horas": 4,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    }
+  ]
+}
