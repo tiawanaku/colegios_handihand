@@ -5,7 +5,9 @@ Dashboard de unidades educativas **fiscales/públicas, de convenio y privadas**:
 ```
 docs/      modelo de datos, mejoras, contrato del frontend y análisis de la BD real
 db/        vista SQL sobre la BD de cuidados (Django/PostgreSQL): de aquí salen los datos
-agentes/   COLEGIOS_HANDIHAND (Product Owner) y SCRUM_HANDIHAND, ver docs/06-agentes.md
+agentes/   COLEGIOS_HANDIHAND (PO), SCRUM_HANDIHAND y equipo DEV1/DEV2, ver docs/06-agentes.md y docs/07-desarrolladores.md
+.claude/   agentes dev1-handihand y dev2-handihand y comando /sprint para Claude Code
+sprints/   sprints exportados desde la página
 app/       API FastAPI + dashboard (mapa, KPIs, gráficos, tabla, exportaciones)
 tests/     pruebas: API (pytest) y frontend end-to-end (npm run test:e2e)
 ```

@@ -48,4 +48,6 @@ El colaborador solo ve a COLEGIOS_HANDIHAND: la pestaña SCRUM no aparece, `#scr
 
 ## Pruebas
 
-`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (31 comprobaciones, incluidos el plan B y la vista del colaborador): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
+`npm run test:agentes` recorre el flujo completo con `window.claude` simulado (43 comprobaciones, incluidos el plan B, la vista del colaborador y el equipo de desarrollo): registro de historias, escape de HTML, acta, bloqueo del chat, firma, traspaso, descarga, planificación, tareas, ajuste por herramienta, detección de alteraciones y nueva ronda.
+
+Los desarrolladores DEV1_HANDIHAND y DEV2_HANDIHAND (vista `#devs` y agentes de Claude Code) están en [`07-desarrolladores.md`](07-desarrolladores.md).

@@ -14,7 +14,12 @@
     onSnapshot: (next) => { const f = () => { const docs = [...store.keys()].filter((k) => parent(k) === c).sort().map(snapDoc); next({ docs, size: docs.length, empty: !docs.length }); }; subs.add(f); f(); return () => subs.delete(f); } });
   const db = { doc: docRef, collection: colRef };
   window.__store = store; window.__llamadas = [];
-  const sample = async (turnos, opts) => {
+  const sample = async (turnos, opts = {}) => {
+    if (typeof turnos === "string") { // plan técnico de un desarrollador
+      window.__promptPlan = turnos;
+      const txt = "ENFOQUE: agregar la matrícula a la ficha.\nARCHIVOS: app/frontend/app.js\nPASOS: 1. ...\nPRUEBAS: e2e\nDEPENDENCIAS: DEV1 expone el campo.";
+      return { text: txt, truncated: false };
+    }
     const ultimo = turnos[turnos.length - 1].content.toLowerCase();
     const tool = (n) => opts.tools.find((t) => t.name === n);
     window.__llamadas.push(ultimo);

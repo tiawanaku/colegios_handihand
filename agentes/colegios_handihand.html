@@ -124,6 +124,17 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
 .tarea.hecha span { text-decoration: line-through; color: var(--muted); }
 .tipo { font: 600 10.5px/1.6 var(--font-mono); color: var(--scrum); background: var(--scrum-soft); border-radius: 4px; padding: 0 5px; }
 .list { margin: 0; padding-left: 18px; }
+.dev-chip { font: 600 10.5px/1.6 var(--font-mono); border-radius: 4px; padding: 0 5px; border: 1px solid currentColor; }
+.dev-chip.DEV1 { color: var(--accent); } .dev-chip.DEV2 { color: var(--scrum); }
+nav.views a.devs-tab[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.dev-panel > header { border-top: 4px solid var(--c); border-radius: 12px 12px 0 0; }
+.dev-tarea { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.dev-tarea .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dev-tarea select { width: auto; padding: 4px 8px; }
+.estado-tarea { font: 600 11px/1.6 var(--font-mono); border-radius: 999px; padding: 0 8px; background: var(--bg); border: 1px solid var(--line); }
+.estado-tarea.en_curso { color: var(--warn); } .estado-tarea.revision { color: var(--accent); } .estado-tarea.hecha { color: var(--ok); }
+.plan { font-size: 13.5px; white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px 12px; overflow-wrap: anywhere; }
+pre.json { font: 12px/1.45 var(--font-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 [hidden] { display: none !important; }
 @media (max-width: 900px) {
   .cols { grid-template-columns: 1fr; }
@@ -141,6 +152,7 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
     <nav class="views" aria-label="Agentes">
       <a href="#po" id="tab-po">COLEGIOS_HANDIHAND · PO</a>
       <a href="#scrum" id="tab-scrum" class="scrum-tab" hidden>SCRUM_HANDIHAND</a>
+      <a href="#devs" id="tab-devs" class="devs-tab" hidden>DESARROLLO</a>
     </nav>
   </div>
 </header>
@@ -225,7 +237,7 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
           <label for="cfg-vel">Velocidad (puntos/sprint)<input id="cfg-vel" type="number" min="5" max="200" value="21"></label>
           <label for="cfg-sem">Duración del sprint (semanas)<input id="cfg-sem" type="number" min="1" max="4" value="2"></label>
           <label for="cfg-ini">Inicio del primer sprint<input id="cfg-ini" type="date"></label>
-          <label for="cfg-dev">Desarrolladores<input id="cfg-dev" type="number" min="1" max="20" value="3"></label>
+          <label for="cfg-dev">Desarrolladores (DEV1 y DEV2)<input id="cfg-dev" type="number" value="2" readonly></label>
         </div>
         <div class="row">
           <button type="button" class="scrum" id="btn-planificar" disabled>Generar backlog y sprints</button>
@@ -249,7 +261,7 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
     </section>
 
     <section class="panel chat" aria-label="Ajustes con SCRUM_HANDIHAND" style="height:auto">
-      <header><h2>Ajustar con SCRUM_HANDIHAND</h2><span class="muted" style="font-size:13px">Ej.: “pasa HU-03 al sprint 2”, “HU-05 vale 8 puntos”, “agrega una tarea de pruebas a HU-01”.</span></header>
+      <header><h2>Ajustar con SCRUM_HANDIHAND</h2><span class="muted" style="font-size:13px">Ej.: “pasa HU-03 al sprint 2”, “HU-05 vale 8 puntos”, “asigna la tarea 2 de HU-01 a DEV2”.</span></header>
       <div id="scrum-msgs" class="msgs" style="max-height:340px"></div>
       <form id="scrum-composer" class="composer">
         <label for="scrum-entrada" class="eyebrow" style="grid-column:1/-1">Instrucción para el Scrum Master</label>
@@ -257,6 +269,35 @@ table.backlog td.n { font-variant-numeric: tabular-nums; text-align: right; }
         <div class="actions"><button type="submit" class="scrum" id="scrum-enviar">Enviar</button></div>
       </form>
     </section>
+  </section>
+  <!-- ======================= VISTA DESARROLLO ======================= -->
+  <section id="vista-devs" hidden>
+    <section class="panel" aria-labelledby="h-devs">
+      <header>
+        <h2 id="h-devs">Sprint de trabajo</h2>
+        <label for="devs-sprint" class="muted" style="font-size:13px;display:flex;gap:6px;align-items:center">Sprint <select id="devs-sprint" style="width:auto"></select></label>
+        <span id="devs-resumen" class="muted" style="font-size:13px"></span>
+      </header>
+      <div class="body">
+        <p id="devs-objetivo" style="margin:0"></p>
+        <div class="row">
+          <button type="button" class="scrum" id="btn-exportar">Exportar sprint para Claude Code</button>
+          <button type="button" id="btn-copiar-sprint" hidden>Copiar</button>
+          <button type="button" id="btn-descargar-sprint" hidden>Descargar .json</button>
+          <span id="exportar-estado" class="muted" style="font-size:13px"></span>
+        </div>
+        <pre id="sprint-json" class="json" hidden></pre>
+        <details>
+          <summary style="cursor:pointer;font-weight:600">Importar avance de Claude Code</summary>
+          <div style="display:grid;gap:8px;margin-top:10px">
+            <label for="avance-texto" class="eyebrow">Pegue el bloque avance-handihand que entregó /sprint</label>
+            <textarea id="avance-texto" rows="5"></textarea>
+            <div class="row"><button type="button" class="scrum" id="btn-avance">Importar avance</button><span id="avance-estado" class="muted" style="font-size:13px"></span></div>
+          </div>
+        </details>
+      </div>
+    </section>
+    <div class="cols" id="devs-cols"></div>
   </section>
 </main>
 
@@ -302,6 +343,24 @@ ${BLOQUE}acta-handihand
 ${BLOQUE}
 - En la firma usa exactamente lo que yo escribí; nunca la completes por tu cuenta.`;
 const PROMPT_EXTERNO = () => `${REGLAS_EXTERNO}\n\n${CONTEXTO}\n\nEmpieza saludándome y preguntando qué me gustaría cambiar, mejorar o agregar.`;
+
+// ============================================================================ equipo de desarrollo
+const DEVS = {
+  DEV1: { nombre: "DEV1_HANDIHAND", rol: "Backend y datos", tipos: ["backend", "datos", "devops"], color: "--accent",
+    perfil: "desarrollador backend senior: Python 3.13, FastAPI, SQLModel/SQLAlchemy, PostgreSQL (vistas, EAV de Django), autenticación, exportaciones (CSV, Excel, PDF), Docker y pytest" },
+  DEV2: { nombre: "DEV2_HANDIHAND", rol: "Frontend y experiencia", tipos: ["frontend", "diseño"], color: "--scrum",
+    perfil: "desarrollador frontend senior: JavaScript sin framework ni build, HTML/CSS accesible, Leaflet, Chart.js, diseño responsive y pruebas end-to-end con Playwright" },
+};
+const ESTADOS_TAREA = { pendiente: "Pendiente", en_curso: "En curso", revision: "En revisión", hecha: "Hecha" };
+// Si SCRUM no dijo a quién va una tarea, se decide por su tipo (pruebas: backend por defecto)
+const asignado = (t) => (DEVS[t?.asignado] ? t.asignado : DEVS.DEV2.tipos.includes(t?.tipo) ? "DEV2" : "DEV1");
+const REPO = `REPOSITORIO colegios_handihand (rama de trabajo actual):
+app/backend/main.py (API FastAPI: /api/unidades, /geojson, /estadisticas, /catalogos, /export.{csv,xlsx,pdf}; filtros en la clase Filtros)
+app/backend/auth.py (login: usuarios con scrypt, cookie firmada) · models.py (UnidadEducativa) · db.py · normalize.py · importer.py · pdf_report.py
+db/vista_unidad_educativa.sql (vista sobre la BD Django: core_institucion + catálogo EAV core_catalogogeneral/core_institucionpropiedad)
+app/frontend/index.html, app.js (estado en la URL, AbortController por canal, esc() para todo dato), styles.css, static-api.js (misma API en el navegador), login.html/js
+app/build_static.py (página estática con datos incrustados)
+tests/test_app.py (pytest), tests/test_postgres_cuidados.py (integración), tests/e2e/*.test.mjs (Playwright), docs/04-frontend.md (contrato de la API)`;
 
 const REGLAS_SCRUM = `Eres SCRUM_HANDIHAND, Scrum Master y facilitador técnico del equipo que desarrolla el sistema descrito abajo (FastAPI + PostgreSQL + JavaScript). Recibes historias de usuario aprobadas y firmadas por el cliente.`;
 
@@ -357,18 +416,21 @@ function firmaDe(rid) {
 function vista() {
   // SCRUM_HANDIHAND solo existe para el dueño de la página; el colaborador solo ve al PO
   // mientras no se sabe quién mira, se muestra el PO sin tocar la URL
-  if (location.hash === "#scrum" && !S.esEquipo && S.identidadLista) history.replaceState(null, "", "#po");
-  const scrum = location.hash === "#scrum" && S.esEquipo;
-  $("#tab-scrum").hidden = !S.esEquipo;
-  $("#vista-po").hidden = scrum;
-  $("#vista-scrum").hidden = !scrum;
-  for (const [el, activo] of [[$("#tab-po"), !scrum], [$("#tab-scrum"), scrum]]) {
+  const interna = ["#scrum", "#devs"].includes(location.hash);
+  if (interna && !S.esEquipo && S.identidadLista) history.replaceState(null, "", "#po");
+  const v = interna && S.esEquipo ? location.hash.slice(1) : "po";
+  $("#tab-scrum").hidden = $("#tab-devs").hidden = !S.esEquipo;
+  $("#vista-po").hidden = v !== "po";
+  $("#vista-scrum").hidden = v !== "scrum";
+  $("#vista-devs").hidden = v !== "devs";
+  for (const [el, activo] of [[$("#tab-po"), v === "po"], [$("#tab-scrum"), v === "scrum"], [$("#tab-devs"), v === "devs"]]) {
     if (activo) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
   }
-  $("#titulo-agente").textContent = scrum ? "SCRUM_HANDIHAND" : "COLEGIOS_HANDIHAND";
-  $("#sub-agente").textContent = scrum
-    ? "Scrum Master: convierte las historias firmadas en backlog y sprints para el equipo"
-    : "Product Owner del dashboard Colegios Handihand";
+  $("#titulo-agente").textContent = { po: "COLEGIOS_HANDIHAND", scrum: "SCRUM_HANDIHAND", devs: "Equipo de desarrollo" }[v];
+  $("#sub-agente").textContent = {
+    scrum: "Scrum Master: convierte las historias firmadas en backlog y sprints para el equipo",
+    devs: "DEV1_HANDIHAND y DEV2_HANDIHAND trabajan las tareas que asigna SCRUM_HANDIHAND",
+    po: "Product Owner del dashboard Colegios Handihand" }[v];
 }
 window.addEventListener("hashchange", vista);
 
@@ -746,7 +808,7 @@ function renderScrum() {
       <div class="bar" title="${hechas} de ${tareas.length} tareas hechas"><i style="width:${tareas.length ? Math.round((hechas / tareas.length) * 100) : 0}%"></i></div>
       ${its.map((i) => `<div class="item"><span class="t">${esc(i.codigo)} · ${esc(i.titulo)} <span class="muted" style="font-weight:400">(${esc(i.puntos)} pts)</span></span>
         ${(i.tareas || []).map((t, k) => `<label class="tarea ${t.estado === "hecha" ? "hecha" : ""}"><input type="checkbox" data-item="${esc(i.id)}" data-k="${k}" ${t.estado === "hecha" ? "checked" : ""} ${S.esEquipo ? "" : "disabled"}>
-          <span><span class="tipo">${esc(t.tipo)}</span> ${esc(t.titulo)} <span class="muted">${t.horas ? `· ${esc(t.horas)} h` : ""}</span></span></label>`).join("")}
+          <span><span class="tipo">${esc(t.tipo)}</span> <span class="dev-chip ${esc(asignado(t))}" title="${esc(DEVS[asignado(t)].nombre)}">${esc(asignado(t))}</span> ${esc(t.titulo)} <span class="muted">${t.horas ? `· ${esc(t.horas)} h` : ""}</span></span></label>`).join("")}
       </div>`).join("") || '<p class="muted" style="margin:0">Sin ítems.</p>'}</article>`;
   }).join("") || `<div class="empty">Aún no hay sprints.</div>`;
   $("#sprints").querySelectorAll("input[data-item]").forEach((cb) => cb.addEventListener("change", () => marcarTarea(cb.dataset.item, Number(cb.dataset.k), cb.checked)));
@@ -756,6 +818,7 @@ function renderScrum() {
     <div><span class="eyebrow">Definición de terminado</span><ul class="list">${(p.dod || []).map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>
     <div><span class="eyebrow">Riesgos y dependencias</span><ul class="list">${(p.riesgos || []).map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div></div>` : "";
   renderScrumChat();
+  renderDevs();
 }
 
 function renderScrumChat() {
@@ -781,17 +844,19 @@ async function planificar() {
   const pend = rondasParaPlanificar();
   const hs = pend.flatMap((r) => historiasDe(r.id).filter((h) => h.estado === "aprobada"));
   if (!hs.length) return;
-  const vel = Number($("#cfg-vel").value) || 21, sem = Number($("#cfg-sem").value) || 2, devs = Number($("#cfg-dev").value) || 3;
+  const vel = Number($("#cfg-vel").value) || 21, sem = Number($("#cfg-sem").value) || 2, devs = 2;
   const inicio = $("#cfg-ini").value || new Date().toISOString().slice(0, 10);
   const ultimo = S.sprints.reduce((m, s) => Math.max(m, s.numero), 0);
   const ocupados = S.sprints.map((s) => ({ numero: s.numero, puntos: S.backlog.filter((i) => Number(i.sprint) === s.numero).reduce((a, i) => a + (Number(i.puntos) || 0), 0), capacidad: s.capacidad }));
-  const prompt = `${REGLAS_SCRUM}\n\n${CONTEXTO}\n\nEQUIPO: ${devs} desarrolladores, velocidad ${vel} puntos por sprint de ${sem} semanas.
+  const prompt = `${REGLAS_SCRUM}\n\n${CONTEXTO}\n\nEQUIPO: ${devs} desarrolladores, velocidad ${vel} puntos por sprint de ${sem} semanas (unas ${sem * 30} horas efectivas por persona y sprint):
+- DEV1: DEV1_HANDIHAND, backend y datos (FastAPI, SQL/vista, importador, login, exportaciones, despliegue, pruebas de API).
+- DEV2: DEV2_HANDIHAND, frontend y experiencia (app.js, HTML/CSS, mapa, gráficos, accesibilidad, pruebas en navegador).
 SPRINTS YA EXISTENTES (no los cambies, puedes usar su capacidad libre): ${JSON.stringify(ocupados)}. El siguiente sprint nuevo es el ${ultimo + 1}.
 HISTORIAS FIRMADAS A PLANIFICAR:\n${JSON.stringify(hs.map(({ codigo, titulo, como, quiero, para, criterios, prioridad, notas }) => ({ codigo, titulo, como, quiero, para, criterios, prioridad, notas })))}
 
-Tarea: estima cada historia en puntos Fibonacci (1,2,3,5,8,13; si pasa de 13, divídela en varias con código HU-xx.a, HU-xx.b), desglósala en 2 a 6 tareas técnicas (tipo: backend, frontend, datos, pruebas, devops o diseño; con horas estimadas) y asígnala a sprints respetando prioridad MoSCoW (MUST primero, WONT no se asigna: sprint null) y la velocidad. Cada sprint con un objetivo de una frase.
+Tarea: estima cada historia en puntos Fibonacci (1,2,3,5,8,13; si pasa de 13, divídela en varias con código HU-xx.a, HU-xx.b), desglósala en 2 a 6 tareas técnicas (tipo: backend, frontend, datos, pruebas, devops o diseño; con horas estimadas y "asignado": "DEV1" o "DEV2" según su especialidad, equilibrando las horas de ambos en cada sprint) y asígnala a sprints respetando prioridad MoSCoW (MUST primero, WONT no se asigna: sprint null) y la velocidad. Cada sprint con un objetivo de una frase.
 Responde SOLO con JSON con esta forma:
-{"backlog":[{"codigo":"HU-01","titulo":"...","prioridad":"MUST","puntos":5,"sprint":1,"tareas":[{"titulo":"...","tipo":"backend","horas":6}]}],
+{"backlog":[{"codigo":"HU-01","titulo":"...","prioridad":"MUST","puntos":5,"sprint":1,"tareas":[{"titulo":"...","tipo":"backend","horas":6,"asignado":"DEV1"}]}],
  "sprints":[{"numero":1,"objetivo":"..."}],
  "dod":["..."],"riesgos":["..."]}`;
   S.scrumCtl = new AbortController();
@@ -805,7 +870,7 @@ Responde SOLO con JSON con esta forma:
       const codigo = String(i.codigo || `HU-${k}`).replace(/[^\w.\-]/g, "");
       const it = { codigo, titulo: String(i.titulo || ""), prioridad: prio(i.prioridad), puntos: Number(i.puntos) || 0,
         sprint: i.sprint == null ? null : Number(i.sprint), orden: base + k,
-        tareas: (Array.isArray(i.tareas) ? i.tareas : []).slice(0, 10).map((t) => ({ titulo: String(t.titulo || ""), tipo: String(t.tipo || "backend"), horas: Number(t.horas) || null, estado: "pendiente" })),
+        tareas: (Array.isArray(i.tareas) ? i.tareas : []).slice(0, 10).map((t) => ({ titulo: String(t.titulo || ""), tipo: String(t.tipo || "backend"), horas: Number(t.horas) || null, estado: "pendiente", asignado: asignado(t) })),
         origen: hs.find((h) => codigo.startsWith(h.codigo))?.ronda || null, creado: ahora() };
       await S.db.doc(`backlog/${codigo}`).set(it);
     }
@@ -837,11 +902,18 @@ function herramientasScrum() {
     { name: "cambiar_puntos", description: "Cambia la estimación en puntos (Fibonacci) de un ítem.",
       inputSchema: { type: "object", required: ["codigo", "puntos"], properties: { codigo: { type: "string" }, puntos: { type: "integer" } } },
       async execute(i) { const it = item(i.codigo); await S.db.doc(`backlog/${it.id}`).update({ puntos: Number(i.puntos) || 0 }); return { ok: true }; } },
+    { name: "asignar_tarea", description: "Asigna una tarea de un ítem a DEV1 (backend y datos) o DEV2 (frontend). La tarea se indica por su número (1 = primera).",
+      inputSchema: { type: "object", required: ["codigo", "tarea", "dev"], properties: { codigo: { type: "string" }, tarea: { type: "integer" }, dev: { type: "string", enum: ["DEV1", "DEV2"] } } },
+      async execute(i) { const it = item(i.codigo); const k = Number(i.tarea) - 1;
+        if (!it.tareas?.[k]) throw new Error(`${i.codigo} no tiene tarea ${i.tarea}`);
+        await cambiarTarea(it.id, k, { asignado: String(i.dev) === "DEV2" ? "DEV2" : "DEV1" }); return { ok: true }; } },
     { name: "agregar_tarea", description: "Agrega una tarea técnica a un ítem del backlog.",
       inputSchema: { type: "object", required: ["codigo", "titulo", "tipo"], properties: { codigo: { type: "string" }, titulo: { type: "string" },
-        tipo: { type: "string", enum: ["backend", "frontend", "datos", "pruebas", "devops", "diseño"] }, horas: { type: "number" } } },
+        tipo: { type: "string", enum: ["backend", "frontend", "datos", "pruebas", "devops", "diseño"] }, horas: { type: "number" }, dev: { type: "string", enum: ["DEV1", "DEV2"] } } },
       async execute(i) { const it = item(i.codigo);
-        await S.db.doc(`backlog/${it.id}`).update({ tareas: [...(it.tareas || []), { titulo: String(i.titulo), tipo: String(i.tipo), horas: Number(i.horas) || null, estado: "pendiente" }] });
+        const nueva = { titulo: String(i.titulo), tipo: String(i.tipo), horas: Number(i.horas) || null, estado: "pendiente" };
+        nueva.asignado = DEVS[i.dev] ? String(i.dev) : asignado(nueva);
+        await S.db.doc(`backlog/${it.id}`).update({ tareas: [...(it.tareas || []), nueva] });
         return { ok: true }; } },
   ];
 }
@@ -855,7 +927,8 @@ async function enviarScrum(ev) {
   S.scrumTurnos.push({ role: "assistant", content: "Pensando…" });
   renderScrumChat();
   const estado = JSON.stringify({ sprints: S.sprints.map(({ numero, objetivo, capacidad }) => ({ numero, objetivo, capacidad })),
-    backlog: S.backlog.map(({ codigo, titulo, prioridad, puntos, sprint, tareas }) => ({ codigo, titulo, prioridad, puntos, sprint, tareas: (tareas || []).map((t) => t.titulo) })) });
+    backlog: S.backlog.map(({ codigo, titulo, prioridad, puntos, sprint, tareas }) => ({ codigo, titulo, prioridad, puntos, sprint, tareas: (tareas || []).map((t) => `${t.titulo} [${asignado(t)}, ${t.estado || "pendiente"}]`) })),
+    equipo: "DEV1 = DEV1_HANDIHAND (backend y datos), DEV2 = DEV2_HANDIHAND (frontend)" });
   const reglas = `${REGLAS_SCRUM}\nAyudas al equipo a ajustar el plan con las herramientas disponibles. Responde breve, en español. Si un cambio deja un sprint por encima de su capacidad, adviértelo.\nESTADO ACTUAL: ${estado}`;
   const turnos = [{ role: "user", content: reglas }, ...S.scrumTurnos.slice(0, -1).slice(-12)];
   try {
@@ -866,6 +939,170 @@ async function enviarScrum(ev) {
     S.scrumTurnos[S.scrumTurnos.length - 1].content = e?.text || textoError(e);
   }
   renderScrumChat();
+}
+
+// ============================================================================ vista DESARROLLO
+let sprintElegido = null;
+let sprintManual = false; // si el usuario no eligió, se sigue el sprint con trabajo pendiente
+
+function tareasDelSprint(n) {
+  return S.backlog.filter((i) => Number(i.sprint) === n).sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99))
+    .flatMap((i) => (i.tareas || []).map((t, k) => ({ item: i, t, k, id: `${i.codigo}#${k + 1}` })));
+}
+
+function historiaDe(codigo) {
+  const base = String(codigo).split(".")[0];
+  return S.historias.find((h) => h.codigo === base) || null;
+}
+
+function renderDevs() {
+  const sel = $("#devs-sprint");
+  const sprints = [...S.sprints].sort((a, b) => a.numero - b.numero);
+  if (!sprintManual || !sprints.some((s) => s.numero === sprintElegido)) {
+    const conTrabajo = sprints.filter((s) => tareasDelSprint(s.numero).length);
+    const activo = conTrabajo.find((s) => tareasDelSprint(s.numero).some(({ t }) => t.estado !== "hecha"));
+    const nuevo = (activo || conTrabajo[conTrabajo.length - 1] || sprints[0])?.numero ?? null;
+    if (nuevo !== sprintElegido) $("#sprint-json").hidden = $("#btn-copiar-sprint").hidden = $("#btn-descargar-sprint").hidden = true;
+    sprintElegido = nuevo;
+  }
+  sel.innerHTML = sprints.map((s) => `<option value="${s.numero}"${s.numero === sprintElegido ? " selected" : ""}>Sprint ${s.numero}</option>`).join("");
+  $("#btn-exportar").disabled = sprintElegido == null;
+  const sp = sprints.find((s) => s.numero === sprintElegido);
+  $("#devs-objetivo").innerHTML = sp ? `<b>Objetivo:</b> ${esc(sp.objetivo)} <span class="muted">· ${esc(sp.inicio || "")} → ${esc(sp.fin || "")}</span>` : "";
+  const tareas = sprintElegido == null ? [] : tareasDelSprint(sprintElegido);
+  const hechas = tareas.filter(({ t }) => t.estado === "hecha").length;
+  $("#devs-resumen").textContent = tareas.length ? `${hechas}/${tareas.length} tareas hechas` : "";
+  const cap = (sp?.semanas || 2) * 30;
+  $("#devs-cols").innerHTML = Object.entries(DEVS).map(([clave, d]) => {
+    const mias = tareas.filter(({ t }) => asignado(t) === clave);
+    const horas = mias.reduce((a, { t }) => a + (Number(t.horas) || 0), 0);
+    return `<section class="panel dev-panel" style="--c:var(${d.color})" aria-label="${esc(d.nombre)}">
+      <header><h2>${esc(d.nombre)}</h2><span class="muted" style="font-size:13px">${esc(d.rol)} · ${horas}/${cap} h</span></header>
+      <div class="body">${mias.length ? mias.map(({ item, t, k, id }) => `
+        <article class="dev-tarea">
+          <div class="head"><span class="cod" style="font:600 12px var(--font-mono);color:var(--scrum)">${esc(id)}</span><span class="tipo">${esc(t.tipo)}</span>
+            <span class="estado-tarea ${esc(t.estado || "pendiente")}">${esc(ESTADOS_TAREA[t.estado] || "Pendiente")}</span>${t.horas ? `<span class="muted" style="font-size:12px">${esc(t.horas)} h</span>` : ""}</div>
+          <div><b>${esc(t.titulo)}</b><br><span class="muted" style="font-size:13px">${esc(item.codigo)} · ${esc(item.titulo)}</span></div>
+          <div class="row">
+            <label class="muted" style="font-size:13px;display:flex;gap:6px;align-items:center">Estado
+              <select data-estado="${esc(item.id)}" data-k="${k}">${Object.entries(ESTADOS_TAREA).map(([v, l]) => `<option value="${v}"${(t.estado || "pendiente") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+            <button type="button" data-plan="${esc(item.id)}" data-k="${k}" ${S.sample ? "" : "disabled"}>${t.plan ? "Rehacer plan técnico" : "Plan técnico"}</button>
+            ${t.commit ? `<span class="muted" style="font:12px var(--font-mono)">commit ${esc(t.commit)}</span>` : ""}
+          </div>
+          ${t.nota ? `<p class="muted" style="margin:0;font-size:13px">${esc(t.nota)}</p>` : ""}
+          ${t.plan ? `<details><summary style="cursor:pointer;font-size:13px;font-weight:600">Plan de ${esc(d.nombre)}</summary><div class="plan">${esc(t.plan)}</div></details>` : ""}
+        </article>`).join("") : `<div class="empty">Sin tareas asignadas en este sprint.</div>`}</div></section>`;
+  }).join("");
+  $("#devs-cols").querySelectorAll("select[data-estado]").forEach((el) => el.addEventListener("change", () => cambiarTarea(el.dataset.estado, Number(el.dataset.k), { estado: el.value })));
+  $("#devs-cols").querySelectorAll("button[data-plan]").forEach((b) => b.addEventListener("click", () => planTecnico(b, b.dataset.plan, Number(b.dataset.k))));
+}
+
+async function cambiarTarea(itemId, k, cambios) {
+  const it = S.backlog.find((i) => i.id === itemId);
+  if (!it || !it.tareas?.[k]) return;
+  const tareas = it.tareas.map((t, i) => (i === k ? { ...t, ...cambios } : t));
+  try { await S.db.doc(`backlog/${itemId}`).update({ tareas }); }
+  catch (e) { aviso(`No se pudo actualizar la tarea (${e.code}).`, "bad"); }
+}
+
+async function planTecnico(boton, itemId, k) {
+  const it = S.backlog.find((i) => i.id === itemId);
+  const t = it?.tareas?.[k];
+  if (!t) return;
+  const dev = DEVS[asignado(t)];
+  const h = historiaDe(it.codigo);
+  const prompt = `Eres ${dev.nombre}, ${dev.perfil}. Trabajas en el equipo que dirige SCRUM_HANDIHAND y te asignó esta tarea.
+
+${CONTEXTO}
+
+${REPO}
+
+DEFINICIÓN DE TERMINADO: ${(S.planInfo?.dod || ["Pruebas automáticas pasan", "Revisado por el otro desarrollador"]).join("; ")}
+
+HISTORIA ${it.codigo}: ${it.titulo}${h ? `\nComo ${h.como}, quiero ${h.quiero}, para ${h.para}.\nCriterios de aceptación:\n- ${(h.criterios || []).join("\n- ")}` : ""}
+OTRAS TAREAS DE LA HISTORIA: ${(it.tareas || []).map((x, i) => `${i + 1}. [${asignado(x)}] ${x.titulo}`).join(" | ")}
+TU TAREA (${t.tipo}, ${t.horas || "?"} h): ${t.titulo}
+
+Escribe tu plan técnico en español, breve y concreto (máximo 300 palabras), con estas secciones en texto simple:
+ENFOQUE: cómo lo resolverás.
+ARCHIVOS: qué archivos del repositorio crearás o cambiarás y qué cambia en cada uno.
+PASOS: lista numerada.
+PRUEBAS: qué pruebas automáticas agregarás y cómo verificas cada criterio de aceptación.
+DEPENDENCIAS: qué necesitas del otro desarrollador o de datos que hoy no existen.`;
+  const txt = boton.textContent;
+  boton.disabled = true; boton.textContent = `${dev.nombre} está pensando…`;
+  try {
+    const { text } = await S.sample(prompt, { cache: false });
+    await cambiarTarea(itemId, k, { plan: text.slice(0, 6000), estado: t.estado === "pendiente" || !t.estado ? "en_curso" : t.estado });
+  } catch (e) {
+    aviso(textoError(e), "bad");
+    boton.disabled = false; boton.textContent = txt;
+  }
+}
+
+function sprintParaExportar(n) {
+  const sp = S.sprints.find((s) => s.numero === n);
+  const items = S.backlog.filter((i) => Number(i.sprint) === n).sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
+  return {
+    formato: "sprint-handihand/1", proyecto: "colegios_handihand", sprint: n, objetivo: sp?.objetivo || "",
+    inicio: sp?.inicio || null, fin: sp?.fin || null, dod: S.planInfo?.dod || [],
+    equipo: Object.fromEntries(Object.entries(DEVS).map(([k, d]) => [k, { agente: d.nombre.toLowerCase().replace("_", "-"), rol: d.rol }])),
+    historias: items.map((i) => {
+      const h = historiaDe(i.codigo);
+      return { codigo: i.codigo, titulo: i.titulo, prioridad: i.prioridad, puntos: i.puntos,
+        como: h?.como || "", quiero: h?.quiero || "", para: h?.para || "", criterios: h?.criterios || [],
+        tareas: (i.tareas || []).map((t, k) => ({ id: `${i.codigo}#${k + 1}`, titulo: t.titulo, tipo: t.tipo, horas: t.horas,
+          asignado: asignado(t), estado: t.estado || "pendiente", plan: t.plan || "" })) };
+    }),
+  };
+}
+
+let sprintJSON = "";
+function exportarSprint() {
+  if (sprintElegido == null) return;
+  sprintJSON = JSON.stringify(sprintParaExportar(sprintElegido), null, 2);
+  $("#sprint-json").textContent = sprintJSON;
+  $("#sprint-json").hidden = false;
+  $("#btn-copiar-sprint").hidden = false;
+  $("#btn-descargar-sprint").hidden = !S.downloads;
+  $("#exportar-estado").textContent = `Guárdelo como sprints/sprint-${String(sprintElegido).padStart(2, "0")}.json en el repositorio y ejecute /sprint en Claude Code.`;
+}
+
+async function copiarSprint() {
+  try { await navigator.clipboard.writeText(sprintJSON); $("#exportar-estado").textContent = "Sprint copiado."; }
+  catch { const r = document.createRange(); r.selectNodeContents($("#sprint-json")); getSelection().removeAllRanges(); getSelection().addRange(r); $("#exportar-estado").textContent = "Texto seleccionado: cópielo con Ctrl+C."; }
+}
+
+async function descargarSprint() {
+  try { await S.downloads.save({ filename: `sprint-${String(sprintElegido).padStart(2, "0")}.json`, data: new Blob([sprintJSON], { type: "application/json" }) }); }
+  catch { /* cancelado */ }
+}
+
+async function importarAvance() {
+  const estado = $("#avance-estado");
+  const texto = $("#avance-texto").value;
+  const m = texto.match(/\u0060{3}(?:avance-handihand|json)?\s*([\s\S]*?)\u0060{3}/);
+  let d;
+  try { d = JSON.parse(m ? m[1] : texto.slice(texto.indexOf("{"), texto.lastIndexOf("}") + 1)); }
+  catch { estado.textContent = "No se encontró un bloque avance-handihand válido."; return; }
+  const lista_ = Array.isArray(d?.tareas) ? d.tareas : [];
+  const porItem = new Map();
+  let aplicadas = 0, ignoradas = 0;
+  for (const a of lista_) {
+    const [codigo, num] = String(a.id || "").split("#");
+    const it = S.backlog.find((i) => i.codigo === codigo);
+    const k = Number(num) - 1;
+    if (!it || !it.tareas?.[k] || !ESTADOS_TAREA[a.estado]) { ignoradas++; continue; }
+    const tareas = porItem.get(it.id) || it.tareas.map((t) => ({ ...t }));
+    tareas[k] = { ...tareas[k], estado: a.estado, ...(a.commit ? { commit: String(a.commit).slice(0, 40) } : {}), ...(a.nota ? { nota: String(a.nota).slice(0, 500) } : {}) };
+    porItem.set(it.id, tareas);
+    aplicadas++;
+  }
+  try {
+    for (const [id, tareas] of porItem) await S.db.doc(`backlog/${id}`).update({ tareas });
+    estado.textContent = `Avance importado: ${aplicadas} tareas actualizadas${ignoradas ? `, ${ignoradas} ignoradas (id o estado desconocido)` : ""}.`;
+    if (aplicadas) $("#avance-texto").value = "";
+  } catch (e) { estado.textContent = `No se pudo importar (${e.code}).`; }
 }
 
 // ============================================================================ plan B: acta aceptada fuera de la página
@@ -946,6 +1183,11 @@ async function iniciar() {
   $("#prompt-externo").value = PROMPT_EXTERNO();
   $("#btn-copiar-prompt").addEventListener("click", copiarPrompt);
   $("#btn-importar").addEventListener("click", importarActa);
+  $("#devs-sprint").addEventListener("change", (e) => { sprintElegido = Number(e.target.value); sprintManual = true; $("#sprint-json").hidden = true; renderDevs(); });
+  $("#btn-exportar").addEventListener("click", exportarSprint);
+  $("#btn-copiar-sprint").addEventListener("click", copiarSprint);
+  $("#btn-descargar-sprint").addEventListener("click", descargarSprint);
+  $("#btn-avance").addEventListener("click", importarAvance);
 
   const [db, user, sample, downloads] = await Promise.all(["db", "user", "sample", "downloads"].map((n) => window.claude?.use?.(n) ?? Promise.resolve(null)));
   Object.assign(S, { db, user, sample, downloads });
