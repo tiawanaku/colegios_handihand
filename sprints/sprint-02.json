@@ -1,0 +1,186 @@
+{
+  "formato": "sprint-handihand/1",
+  "proyecto": "colegios_handihand",
+  "sprint": 2,
+  "objetivo": "Navegar el sistema desde una barra lateral, registrar colegios nuevos y consultar las estadísticas en su propia sección.",
+  "inicio": "2026-11-17",
+  "fin": "2026-11-28",
+  "dod": [
+    "Criterios de aceptación de cada historia verificados y aprobados por el cliente",
+    "Código revisado por otro desarrollador y fusionado a la rama principal",
+    "Pruebas automáticas y manuales aprobadas en escritorio y celular, modo claro y oscuro",
+    "Migraciones de base de datos probadas en un entorno de pruebas y con respaldo antes de aplicarlas en producción",
+    "Endpoints nuevos protegidos con autenticación y rol, y con registro de quién y cuándo realizó cada cambio",
+    "Desplegado en el entorno de pruebas y demostrado en la revisión del sprint",
+    "Documentación breve actualizada (cambios en la vista SQL y en la API)"
+  ],
+  "equipo": {
+    "DEV1": {
+      "agente": "dev1-handihand",
+      "rol": "Backend y datos"
+    },
+    "DEV2": {
+      "agente": "dev2-handihand",
+      "rol": "Frontend y experiencia"
+    }
+  },
+  "nota": "Acta N.º 2 aprobada por la dueña del proyecto sin firma del cliente (historias recuperadas de la ronda 1).",
+  "historias": [
+    {
+      "codigo": "HU-03",
+      "titulo": "Barra lateral de navegación",
+      "prioridad": "MUST",
+      "puntos": 5,
+      "como": "usuario del dashboard",
+      "quiero": "una barra lateral con las opciones Dashboard, Registro, Modificación, Agenda y Estadísticas",
+      "para": "moverme fácilmente entre las secciones del sistema",
+      "criterios": [
+        "Dado que entro al sistema, entonces veo una barra lateral con las cinco opciones",
+        "Dado que elijo una opción, entonces se abre esa sección y la opción queda marcada",
+        "Dado que uso un celular, entonces la barra se puede abrir y cerrar sin tapar el contenido"
+      ],
+      "tareas": [
+        {
+          "id": "HU-03#1",
+          "titulo": "Barra lateral con Dashboard, Registro, Modificación, Agenda y Estadísticas; sección activa marcada y guardada en la URL",
+          "tipo": "frontend",
+          "horas": 6,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-03#2",
+          "titulo": "Barra plegable en celular (botón de menú) que no tapa el contenido; temas claro y oscuro",
+          "tipo": "diseño",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-03#3",
+          "titulo": "Pruebas e2e: cinco opciones, navegación con opción marcada, abrir y cerrar en celular, URL compartida abre la sección",
+          "tipo": "pruebas",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "codigo": "HU-04",
+      "titulo": "Registrar colegios nuevos",
+      "prioridad": "MUST",
+      "puntos": 13,
+      "como": "usuario del sistema (por ahora cualquier usuario)",
+      "quiero": "registrar un colegio nuevo con su nombre, dependencia, distrito, dirección, niveles, turnos y ubicación en el mapa",
+      "para": "que los colegios que abren aparezcan en el sistema",
+      "criterios": [
+        "Dado que completo los datos obligatorios, cuando guardo, entonces el colegio aparece en indicadores, mapa y listado",
+        "Dado que la ubicación está fuera del área de la ciudad o no es válida, entonces el sistema no deja guardar y explica el motivo",
+        "Dado que no elijo al menos un nivel y un turno, entonces el sistema no deja guardar",
+        "Dado que no inicié sesión, entonces no puedo registrar colegios"
+      ],
+      "tareas": [
+        {
+          "id": "HU-04#1",
+          "titulo": "Tabla propia unidad_registrada en la BD del sistema (ids desde 1.000.000), sin tocar core_*",
+          "tipo": "datos",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#2",
+          "titulo": "POST /api/unidades con validación (obligatorios, dependencia, distrito 1-14, al menos un nivel y un turno, coordenadas dentro del área); sesión obligatoria; registra usuario y fecha",
+          "tipo": "backend",
+          "horas": 8,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#3",
+          "titulo": "Combinar los registrados con la vista en unidades, geojson, estadísticas, catálogos, ficha, bajas y exportaciones",
+          "tipo": "backend",
+          "horas": 5,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#4",
+          "titulo": "Pruebas de API: el alta válida aparece en indicadores, mapa y listado; rechaza coordenadas fuera del área y altas sin niveles o turnos; 401 sin sesión",
+          "tipo": "pruebas",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#5",
+          "titulo": "Sección Registro: formulario con mapa para elegir la ubicación, niveles y turnos del catálogo, errores claros y recarga al guardar",
+          "tipo": "frontend",
+          "horas": 8,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#6",
+          "titulo": "Página publicada: registro guardado en la base compartida del artifact, con las mismas validaciones",
+          "tipo": "frontend",
+          "horas": 4,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-04#7",
+          "titulo": "Pruebas e2e del formulario: guardar, errores y aparición en el dashboard",
+          "tipo": "pruebas",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "codigo": "HU-07",
+      "titulo": "Sección de estadísticas",
+      "prioridad": "SHOULD",
+      "puntos": 3,
+      "como": "usuario del dashboard",
+      "quiero": "una sección propia de Estadísticas con los gráficos e indicadores",
+      "para": "consultarlos sin mezclarlos con el mapa y el listado",
+      "criterios": [
+        "Dado que elijo Estadísticas en la barra lateral, entonces veo los indicadores y gráficos en una pantalla propia",
+        "Dado que aplico filtros, entonces las estadísticas se actualizan"
+      ],
+      "tareas": [
+        {
+          "id": "HU-07#1",
+          "titulo": "Sección Estadísticas con indicadores y gráficos (distrito × dependencia, dependencia y nivel); el dashboard queda con indicadores, mapa y listado",
+          "tipo": "frontend",
+          "horas": 4,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-07#2",
+          "titulo": "Pruebas e2e: los gráficos están en Estadísticas y responden a los filtros",
+          "tipo": "pruebas",
+          "horas": 2,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    }
+  ]
+}
