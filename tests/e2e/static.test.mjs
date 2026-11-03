@@ -84,10 +84,19 @@ test("estadísticas, listado y mapa idénticos para muchas combinaciones de filt
 test("la página generada renderiza sin errores y sin exportaciones", async () => {
   const total = (await remote("estadisticas")).total_unidades;
   assert.equal(await page.locator(".kpi b").first().innerText(), total.toLocaleString("es-BO"));
-  assert.equal(await page.locator(".exports, [download]").count(), 0, "sin enlaces de descarga en la versión estática");
+  assert.equal(await page.locator("[data-export], [download], .exports").count(), 0, "sin enlaces de descarga en la versión estática");
   assert.ok((await page.locator(".rotulo-distrito").count()) > 0, "rótulos de distrito sin mapa base");
   await page.check('#f-dependencia input[value="PRIVADA"]');
   await page.waitForFunction(() => document.querySelector(".content").getAttribute("aria-busy") === "false");
   assert.ok((await page.locator("#tabla tbody .badge").allInnerTexts()).every((b) => b === "Privada"));
+  assert.deepEqual(page.errors, []);
+});
+
+test("la página generada no muestra acciones de encargado (sin sesión ni bajas)", async () => {
+  assert.ok(await page.locator("#bajas").isHidden(), "sin sección de colegios dados de baja");
+  await page.locator("#tabla tbody tr").first().click();
+  await page.locator("#detalle[open]").waitFor();
+  assert.equal(await page.locator("#detalle [data-accion], #detalle-confirmar").count(), 0, "sin dar de baja/alta en la ficha");
+  await page.keyboard.press("Escape");
   assert.deepEqual(page.errors, []);
 });

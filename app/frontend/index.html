@@ -10,11 +10,6 @@
 <body>
 <header class="top">
   <h1>Unidades Educativas · Handihand</h1>
-  <nav class="exports">
-    <a data-export="csv" href="#" download>CSV</a>
-    <a data-export="xlsx" href="#" download>Excel</a>
-    <a data-export="pdf" href="#" download>PDF</a>
-  </nav>
   <div class="sesion" hidden><span id="sesion-nombre"></span><button id="salir" type="button">Salir</button></div>
 </header>
 
@@ -36,6 +31,7 @@
 
   <section class="content" aria-busy="true">
     <div id="estado" class="estado" role="alert" hidden></div>
+    <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
     <div class="kpis" id="kpis" aria-live="polite"></div>
 
     <div class="grid2">
@@ -62,6 +58,18 @@
         </table>
       </div>
       <div class="pager"><button id="prev" type="button" aria-label="Página anterior">‹</button><span id="pageinfo" aria-live="polite"></span><button id="next" type="button" aria-label="Página siguiente">›</button></div>
+    </div>
+
+    <div class="card" id="bajas" hidden>
+      <h2>Colegios dados de baja <span id="bajas-count" class="muted"></span></h2>
+      <div id="bajas-confirmar" class="confirmar" role="group" aria-labelledby="bajas-confirmar-texto" hidden></div>
+      <p id="bajas-estado" class="muted" aria-live="polite"></p>
+      <div class="table-wrap">
+        <table id="tabla-bajas" hidden>
+          <thead><tr><th>Nombre</th><th>Dist.</th><th>Dependencia</th><th>Fecha de baja</th><th>Motivo</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </section>
 </main>

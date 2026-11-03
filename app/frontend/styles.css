@@ -3,27 +3,28 @@
   --header: #1f4e79; --header-text: #fff; --mapa: #e9edf2;
   --fiscal: #2a7de1; --convenio: #e8a317; --privada: #c2410c; --comunitaria: #16a34a; --sindato: #9aa4ae;
   --error-bg: #fdecea; --error-text: #8a1c12; --error-line: #f5c2bc;
+  --ok-bg: #e7f6ec; --ok-text: #14532d; --ok-line: #b7e1c4; --peligro: #b42318; --peligro-text: #fff;
 }
 /* Tema oscuro: por preferencia del sistema, o explícito con data-theme (gana en ambos sentidos) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11161c; --card: #1a2129; --text: #e6ebf0; --muted: #94a0ad; --line: #2c3640; --accent: #7fb2e5;
     --header: #16324f; --mapa: #151b22; --error-bg: #3a1714; --error-text: #f6b8b0; --error-line: #6b2a22;
+    --ok-bg: #122a1b; --ok-text: #a7e3bb; --ok-line: #24553a; --peligro: #e5534b; --peligro-text: #1a0a09;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11161c; --card: #1a2129; --text: #e6ebf0; --muted: #94a0ad; --line: #2c3640; --accent: #7fb2e5;
   --header: #16324f; --mapa: #151b22; --error-bg: #3a1714; --error-text: #f6b8b0; --error-line: #6b2a22;
+  --ok-bg: #122a1b; --ok-text: #a7e3bb; --ok-line: #24553a; --peligro: #e5534b; --peligro-text: #1a0a09;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
 .top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; background: var(--header); color: var(--header-text); }
-.top h1 { font-size: 18px; margin: 0; }
+.top h1 { font-size: 18px; margin: 0; line-height: 1.3; }
 .top .muted { color: #dbe7f3; }
-.exports { margin-left: auto; display: flex; gap: 8px; }
-.exports a { color: var(--header-text); border: 1px solid #ffffff66; border-radius: 6px; padding: 4px 10px; text-decoration: none; }
 .layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 16px; }
 .filters { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; align-self: start; position: sticky; top: 16px; }
 .filters-body { display: grid; gap: 12px; margin-top: 12px; }
@@ -82,8 +83,14 @@ dialog dt { color: var(--muted); }
   .filters { position: static; }
   .grid2 { grid-template-columns: 1fr; }
 }
+@media (max-width: 480px) {
+  .top { padding: 10px 12px; gap: 8px; }
+  .top h1 { font-size: 16px; }
+  .layout { padding: 12px; gap: 12px; }
+  dialog dl { grid-template-columns: 110px 1fr; }
+}
 /* Sesión: usuario y salir en el encabezado; página de login */
-.sesion { display: flex; gap: 8px; align-items: center; }
+.sesion { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .sesion button { background: transparent; color: var(--header-text); border-color: #ffffff66; padding: 4px 10px; }
 .login-body { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .login { width: 100%; max-width: 360px; }
@@ -95,3 +102,23 @@ dialog dt { color: var(--muted); }
 .login input:focus-visible, .login button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.primario { background: var(--header); color: var(--header-text); border-color: var(--header); font-weight: 600; padding: 8px 12px; }
 button:disabled { opacity: .6; cursor: progress; }
+/* Bajas y altas (sólo encargado) */
+.aviso { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-line); border-radius: 8px; padding: 10px 12px; }
+.error-inline { color: var(--error-text); background: var(--error-bg); border: 1px solid var(--error-line); border-radius: 6px; padding: 6px 10px; margin: 0; }
+.baja-info { color: var(--error-text); background: var(--error-bg); border-radius: 6px; padding: 6px 10px; margin: 0 0 8px; }
+.acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.confirmar form { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-left: 4px solid var(--peligro); border-radius: 8px; background: var(--bg); }
+.confirmar form[data-tipo="alta"] { border-left-color: var(--accent); }
+.confirmar p { margin: 0; }
+.confirmar label { font-weight: 600; }
+.confirmar textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); font: inherit; resize: vertical; }
+.confirmar textarea[aria-invalid="true"] { border-color: var(--peligro); }
+.confirmar .acciones { margin-top: 0; }
+#bajas .confirmar form { margin: 0 0 12px; }
+button.peligro { background: var(--peligro); color: var(--peligro-text); border-color: var(--peligro); font-weight: 600; }
+button.enlace { all: unset; cursor: pointer; color: var(--accent); text-decoration: underline; }
+button:focus-visible, button.enlace:focus-visible, .confirmar textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#bajas-estado:empty { display: none; }
+#tabla-bajas button[data-alta] { white-space: nowrap; }
+#bajas-estado { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

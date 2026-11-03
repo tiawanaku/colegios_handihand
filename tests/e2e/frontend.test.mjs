@@ -58,8 +58,8 @@ after(async () => {
 });
 
 /** Página con sesión iniciada (la cookie del login hecho en before). */
-async function open(query = "") {
-  const ctx = await browser.newContext();
+async function open(query = "", ctxOpts = {}) {
+  const ctx = await browser.newContext(ctxOpts);
   const [name, value] = cookie.split(/=(.*)/);
   await ctx.addCookies([{ name, value, url: BASE }]);
   const page = await ctx.newPage();
@@ -101,21 +101,63 @@ test("datos de la BD nunca se interpretan como HTML (tooltip, leyenda, tabla, de
   await page.context().close();
 });
 
-test("filtros sincronizan URL, KPIs y enlaces de exportación", async () => {
+test("filtros sincronizan URL y KPIs; la URL copiada abre la misma vista", async () => {
   const page = await open();
   await page.check('#f-dependencia input[value="CONVENIO"]');
   await settle(page);
   const stats = await (await api("estadisticas?dependencia=CONVENIO")).json();
   assert.equal(await kpiTotal(page), String(stats.total_unidades));
   assert.match(page.url(), /dependencia=CONVENIO/);
-  assert.match(await page.locator('[data-export="xlsx"]').getAttribute("href"), /export\.xlsx\?dependencia=CONVENIO/);
   assert.ok((await badges(page)).every((b) => b === "De convenio"));
+  const copia = await open(new URL(page.url()).search); // otra persona abre el enlace compartido
+  assert.ok(await copia.isChecked('#f-dependencia input[value="CONVENIO"]'));
+  assert.equal(await kpiTotal(copia), String(stats.total_unidades));
+  assert.ok((await badges(copia)).every((b) => b === "De convenio"));
+  await copia.context().close();
   await page.click("#limpiar");
   await settle(page);
   assert.equal(await kpiTotal(page), "182");
   assert.ok(!page.url().includes("?"));
   await page.context().close();
 });
+
+// HU-01: ningún botón ni enlace de exportación, en ninguna vista, tamaño ni tema
+const EXPORTAR = "[data-export], [download], .exports, a[href*='/export.']";
+const textoExportar = (page) => page.evaluate(() => [...document.querySelectorAll("a, button")]
+  .map((e) => e.textContent.trim()).filter((t) => /export|descarg|^(csv|excel|pdf)$/i.test(t)));
+
+for (const [nombre, viewport] of [["escritorio", { width: 1280, height: 800 }], ["celular", { width: 390, height: 844 }]]) {
+  for (const colorScheme of ["light", "dark"]) {
+    test(`HU-01: sin botones de exportar y barra superior alineada (${nombre}, tema ${colorScheme})`, async () => {
+      const page = await open("?dependencia=FISCAL", { viewport, colorScheme });
+      assert.equal(await page.locator(EXPORTAR).count(), 0, "vista principal");
+      assert.deepEqual(await textoExportar(page), []);
+      // Barra superior: título y sesión dentro de la barra, sin desbordar el ancho de la pantalla
+      await page.locator(".sesion").waitFor({ state: "visible" });
+      const [top, h1, ses] = await Promise.all([".top", ".top h1", ".sesion"].map((s) => page.locator(s).boundingBox()));
+      for (const b of [h1, ses]) {
+        assert.ok(b.y >= top.y && b.y + b.height <= top.y + top.height, "dentro de la barra");
+        assert.ok(b.x >= 0 && b.x + b.width <= viewport.width, "dentro del ancho");
+      }
+      assert.ok(Math.abs(ses.x + ses.width - (top.x + top.width)) <= 17, "la sesión queda alineada a la derecha");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "sin scroll horizontal");
+      const fondo = await page.evaluate(() => [getComputedStyle(document.querySelector(".top")).backgroundColor,
+        getComputedStyle(document.documentElement).getPropertyValue("--header").trim()]);
+      assert.equal(fondo[0], { "#1f4e79": "rgb(31, 78, 121)", "#16324f": "rgb(22, 50, 79)" }[fondo[1]], "la barra usa el color del tema");
+      assert.equal(fondo[1], colorScheme === "dark" ? "#16324f" : "#1f4e79");
+      // Las demás vistas: ficha de detalle y panel de filtros desplegado
+      await page.locator("#tabla tbody tr").first().click();
+      await page.locator("#detalle[open]").waitFor();
+      assert.equal(await page.locator(EXPORTAR).count(), 0, "ficha de detalle");
+      assert.deepEqual(await textoExportar(page), []);
+      await page.keyboard.press("Escape");
+      await page.evaluate(() => (document.querySelector("#panel-filtros").open = true));
+      assert.equal(await page.locator(EXPORTAR).count(), 0, "panel de filtros");
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    });
+  }
+}
 
 test("una URL compartida restaura filtros, página y orden", async () => {
   const page = await open("?dependencia=FISCAL&page=2&orden=-estudiantes_total");

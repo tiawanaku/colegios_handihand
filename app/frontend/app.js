@@ -61,6 +61,12 @@ const labels = (csv) => (csv || "").split(",").filter(Boolean).map(label).join("
 const fmt = (n) => (n == null || n === "" ? "—" : Number(n).toLocaleString("es-BO"));
 // Todo valor que venga de la BD pasa por esc() antes de tocar innerHTML (incluye tooltips de Leaflet).
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// "2026-11-03" sola se leería como UTC (y saldría el día anterior en Bolivia): se toma como hora local
+const fmtFecha = (s) => {
+  if (!s) return "";
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00` : s);
+  return isNaN(d) ? String(s) : d.toLocaleDateString("es-BO");
+};
 
 // ---------------------------------------------------------------- estado (único, sincronizado con la URL)
 const state = { q: "", page: 1, orden: ORDEN_DEFAULT, ...Object.fromEntries(FILTROS.map((f) => [f, []])) };
@@ -73,7 +79,7 @@ function readUrl() {
   state.orden = u.get("orden") || ORDEN_DEFAULT;
 }
 
-/** Parámetros de filtro (sin paginación): los comparten estadísticas, mapa, tabla y exportación. */
+/** Parámetros de filtro (sin paginación): los comparten estadísticas, mapa y tabla. */
 function filterParams() {
   const p = new URLSearchParams();
   if (state.q.trim()) p.set("q", state.q.trim());
@@ -344,8 +350,15 @@ async function showDetail(id) {
       ["Distrito", r.distrito_municipal], ["Zona", r.zona], ["Dirección", r.direccion], ["Teléfono", r.telefono],
       ["Director/a", r.director], ["Estudiantes", est], ["Docentes", r.docentes],
     ].filter(([, v]) => v != null && v !== "");
-    $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>
-      <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
+    detalleActual = r;
+    const baja = r.baja
+      ? `<p class="baja-info">Dado de baja el ${esc(fmtFecha(r.baja.fecha))}${r.baja.motivo ? ` · ${esc(r.baja.motivo)}` : ""}</p>` : "";
+    const acciones = esEncargado ? `<div id="detalle-acciones" class="acciones">${r.baja
+      ? `<button type="button" data-accion="alta">Dar de alta</button>`
+      : `<button type="button" class="peligro" data-accion="baja">Dar de baja</button>`}</div>
+      <div id="detalle-confirmar" class="confirmar" role="group" aria-labelledby="detalle-confirmar-texto" hidden></div>` : "";
+    $("#detalle-body").innerHTML = `<h2 id="detalle-titulo">${esc(r.nombre)}</h2>${baja}
+      <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>${acciones}`;
     const dlg = $("#detalle");
     if (!dlg.open) dlg.showModal();
   } catch (e) {
@@ -353,12 +366,193 @@ async function showDetail(id) {
   }
 }
 
+// ---------------------------------------------------------------- bajas y altas (sólo encargado, con servidor)
+let detalleActual = null, bajasLista = [], altaOrigen = null, avisoTimer;
+
+/** Paso de confirmación previo a dar de baja o de alta. `pre` distingue el del diálogo y el de la lista. */
+function pasoConfirmacion(tipo, nombre, pre) {
+  const baja = tipo === "baja";
+  return `<form data-tipo="${tipo}" novalidate>
+    <p id="${pre}-confirmar-texto"><strong>¿Dar de ${tipo} «${esc(nombre)}»?</strong>
+      ${baja ? "Dejará de aparecer en indicadores, mapa, gráficos y listado." : "Volverá a aparecer en indicadores, mapa, gráficos y listado."}</p>
+    ${baja ? `<label for="${pre}-motivo">Motivo <span class="muted">(obligatorio)</span></label>
+      <textarea id="${pre}-motivo" name="motivo" rows="2" maxlength="300" required aria-describedby="${pre}-error"></textarea>` : ""}
+    <p id="${pre}-error" class="error-inline" role="alert" hidden></p>
+    <div class="acciones"><button type="submit" class="${baja ? "peligro" : "primario"}">Confirmar ${tipo}</button><button type="button" data-cancelar>Cancelar</button></div>
+  </form>`;
+}
+
+async function post(path, body) {
+  let r;
+  try {
+    r = await fetch(`${CONFIG.apiBase}/${path}`, {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body),
+    });
+  } catch {
+    throw Object.assign(new Error("sin conexión"), { status: 0 });
+  }
+  if (r.status === 401) irAlLogin();
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw Object.assign(new Error(typeof d.detail === "string" ? d.detail : `HTTP ${r.status}`), { status: r.status });
+  }
+  return r.json();
+}
+
+function mensajeError(e, tipo) {
+  if (e.status === 409) return tipo === "baja" ? "Este colegio ya estaba dado de baja. Recarga la página para ver su estado."
+    : "Este colegio no estaba dado de baja. Recarga la página para ver su estado.";
+  return {
+    0: "No se pudo conectar con el servidor. Revisa la conexión y reintenta.",
+    403: "Tu usuario no tiene permiso de encargado para esta acción.",
+    404: "El colegio ya no existe en la base de datos.",
+    422: "Faltan datos: escribe el motivo (hasta 300 caracteres) y confirma.",
+  }[e.status] || `No se pudo completar la operación (${e.message}). Reintenta en unos segundos.`;
+}
+
+function avisar(texto) {
+  const a = $("#aviso");
+  a.textContent = texto;
+  a.hidden = false;
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => (a.hidden = true), 6000);
+}
+
+/** Envía la baja o el alta confirmada. Devuelve true si salió bien; si no, deja el error en el formulario. */
+async function ejecutar(form, id, nombre) {
+  const tipo = form.dataset.tipo;
+  const error = form.querySelector(".error-inline");
+  const body = { confirmar: true };
+  if (tipo === "baja") {
+    const motivo = form.motivo.value.trim();
+    form.motivo.setAttribute("aria-invalid", String(!motivo));
+    if (!motivo) {
+      error.textContent = "Escribe el motivo de la baja.";
+      error.hidden = false;
+      form.motivo.focus();
+      return false;
+    }
+    body.motivo = motivo;
+  }
+  const botones = form.querySelectorAll("button");
+  botones.forEach((b) => (b.disabled = true));
+  form.setAttribute("aria-busy", "true");
+  error.hidden = true;
+  try {
+    await post(`unidades/${encodeURIComponent(id)}/${tipo}`, body);
+  } catch (e) {
+    error.textContent = mensajeError(e, tipo);
+    error.hidden = false;
+    return false;
+  } finally {
+    botones.forEach((b) => (b.disabled = false));
+    form.removeAttribute("aria-busy");
+  }
+  avisar(tipo === "baja" ? `«${nombre}» se dio de baja.` : `«${nombre}» se dio de alta y vuelve a aparecer.`);
+  refresh();
+  loadBajas();
+  return true;
+}
+
+function confirmarEnDetalle(tipo) {
+  const box = $("#detalle-confirmar");
+  box.innerHTML = pasoConfirmacion(tipo, detalleActual.nombre, "detalle");
+  box.hidden = false;
+  $("#detalle-acciones").hidden = true;
+  box.querySelector(tipo === "baja" ? "textarea" : "[type=submit]").focus();
+}
+
+function cancelarEnDetalle() {
+  $("#detalle-confirmar").hidden = true;
+  $("#detalle-confirmar").innerHTML = "";
+  $("#detalle-acciones").hidden = false;
+  $("#detalle-acciones button").focus();
+}
+
+async function loadBajas() {
+  const estado = $("#bajas-estado");
+  estado.textContent = "Cargando colegios dados de baja…";
+  estado.classList.remove("error-inline");
+  try {
+    bajasLista = await api("bajas", "bajas");
+  } catch (e) {
+    if (e?.name === "AbortError") return;
+    estado.textContent = `No se pudo cargar la lista de colegios dados de baja (${e.message}). Reintenta en unos segundos.`;
+    estado.classList.add("error-inline");
+    $("#tabla-bajas").hidden = true;
+    return;
+  }
+  $("#bajas-count").textContent = `(${fmt(bajasLista.length)})`;
+  estado.textContent = bajasLista.length ? "" : "No hay colegios dados de baja";
+  $("#tabla-bajas").hidden = !bajasLista.length;
+  $("#tabla-bajas tbody").innerHTML = bajasLista.map((b) => `
+    <tr data-id="${esc(b.id)}">
+      <td><button type="button" class="enlace" data-ver>${esc(b.nombre)}</button></td><td>${esc(b.distrito_municipal)}</td>
+      <td><span class="badge" style="background:${color(b.dependencia)}">${esc(label(b.dependencia || "SIN DATO"))}</span></td>
+      <td>${esc(fmtFecha(b.fecha_baja))}</td><td>${esc(b.motivo)}</td>
+      <td><button type="button" data-alta>Dar de alta</button></td>
+    </tr>`).join("");
+}
+
+function confirmarAltaEnLista(btn) {
+  const id = btn.closest("tr").dataset.id;
+  const b = bajasLista.find((x) => String(x.id) === id);
+  const box = $("#bajas-confirmar");
+  box.dataset.id = id;
+  box.dataset.nombre = b?.nombre ?? "";
+  box.innerHTML = pasoConfirmacion("alta", box.dataset.nombre, "bajas");
+  box.hidden = false;
+  altaOrigen = btn;
+  box.querySelector("[type=submit]").focus();
+}
+
+function cerrarAltaEnLista() {
+  const box = $("#bajas-confirmar");
+  box.hidden = true;
+  box.innerHTML = "";
+}
+
+function bindBajas() {
+  const body = $("#detalle-body");
+  body.addEventListener("click", (e) => {
+    const accion = e.target.closest("[data-accion]");
+    if (accion) confirmarEnDetalle(accion.dataset.accion);
+    if (e.target.closest("[data-cancelar]")) cancelarEnDetalle();
+  });
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (await ejecutar(e.target, detalleActual.id, detalleActual.nombre)) $("#detalle").close();
+  });
+  const card = $("#bajas");
+  card.addEventListener("click", (e) => {
+    if (e.target.closest("[data-alta]")) confirmarAltaEnLista(e.target.closest("[data-alta]"));
+    else if (e.target.closest("[data-ver]")) showDetail(e.target.closest("tr").dataset.id);
+    else if (e.target.closest("[data-cancelar]")) {
+      cerrarAltaEnLista();
+      if (altaOrigen?.isConnected) altaOrigen.focus();
+    }
+  });
+  card.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const box = $("#bajas-confirmar");
+    if (await ejecutar(e.target, box.dataset.id, box.dataset.nombre)) cerrarAltaEnLista();
+  });
+}
+
 // ---------------------------------------------------------------- sesión (no aplica al modo estático)
 const irAlLogin = () => location.replace("login.html");
+let esEncargado = false;
 
 async function initSesion() {
   if (CONFIG.staticApi) return;
+  setBusy(+1); // la sección de bajas depende del rol: la página no está lista hasta saberlo
   const s = await fetch(`${CONFIG.apiBase}/auth/sesion`).then((r) => r.json()).catch(() => null);
+  setBusy(-1);
+  esEncargado = s?.rol === "encargado";
+  if (esEncargado) {
+    $("#bajas").hidden = false;
+    loadBajas();
+  }
   if (!s?.usuario) return; // login desactivado (o sesión vencida: la primera llamada a la API redirige)
   $("#sesion-nombre").textContent = s.nombre || s.usuario;
   $(".sesion").hidden = false;
@@ -369,19 +563,10 @@ async function initSesion() {
 }
 
 // ---------------------------------------------------------------- orquestación
-function updateExports() {
-  const nav = $(".exports"); // exportar necesita el backend; la versión estática no trae estos enlaces
-  if (!nav) return;
-  nav.hidden = Boolean(CONFIG.staticApi);
-  const p = filterParams().toString();
-  document.querySelectorAll("[data-export]").forEach((a) => (a.href = `${CONFIG.apiBase}/export.${a.dataset.export}${p ? `?${p}` : ""}`));
-}
-
 /** Filtros cambiaron: todo se recarga desde la página 1. */
 function refresh() {
   state.page = 1;
   writeUrl();
-  updateExports();
   clearError();
   return Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
 }
@@ -427,6 +612,7 @@ function bindEvents() {
   const dlg = $("#detalle");
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // clic en el fondo
   window.addEventListener("popstate", () => { readUrl(); syncInputs(); refresh(); });
+  bindBajas();
 }
 
 async function init() {
@@ -445,7 +631,6 @@ async function init() {
   }
   syncInputs();
   // Primera carga sin refresh(): respeta la página y el orden que traiga la URL compartida.
-  updateExports();
   await Promise.all([loadStats(), loadMap(), loadTable()]).catch(showError);
 }
 
