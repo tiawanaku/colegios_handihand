@@ -214,6 +214,22 @@ La página generada con `app/build_static.py` responde la API en el navegador co
 
 `POST unidades` aplica las mismas reglas y mensajes que `POST /api/unidades`: usa `validarRegistro` de `app.js` y la misma normalización que el backend. Los registros se mezclan con las filas embebidas en unidades, geojson, estadísticas, catálogos, ficha (`registrado: true` y `registro: {usuario, fecha}`) y bajas, y `catalogos.opciones_registro` es idéntico al del backend (lo verifica `tests/e2e/static.test.mjs`). Los documentos de otros visitantes se sanean antes de usarse: solo campos conocidos con el tipo correcto e ids ≥ 1.000.000 que no estén en los datos. Sin base (archivo suelto u otro hosting), la página es de solo consulta: no hay sección de bajas, y el Registro avisa que solo funciona con servidor o en claude.ai, sin botón Guardar.
 
+## Sprint 3: Correcciones, Agenda y Personal (frontend)
+
+**Navegación y estado en la URL.** La barra lateral queda con Dashboard, Registro, Correcciones, Agenda, Personal y Estadísticas; un enlace antiguo con `vista=modificacion` abre Correcciones. Cada sección guarda su estado en la URL solo en su propio enlace:
+- Correcciones: `ue`, el colegio abierto.
+- Agenda: `mes=YYYY-MM`, `modo=lista`, `colegio` y `estado`.
+- Personal: `personal=todos`.
+
+**Correcciones.** Un buscador accesible (combobox ARIA con `aria-activedescendant`) consulta `GET /unidades?q=`; espera 250 ms antes de buscar y deja una sola petición viva. El colegio elegido se abre en una copia del formulario de registro, con su mapa y `validarRegistro` aplicado al registro completo:
+- Marca desde el inicio los datos de origen que no cumplen las reglas.
+- Envía `PATCH /unidades/{id}` solo con los campos cambiados; las listas se comparan como conjunto.
+- Muestra la bitácora de `GET /unidades/{id}/historial`.
+
+**Agenda.** Pide `GET /actividades?desde&hasta` con el rango de la cuadrícula del mes (de lunes a domingo). Todas las fechas se construyen con componentes locales (`deIso`, `isoDia`), nunca con `new Date("YYYY-MM-DD")`. Encargados y personal se eligen de `GET /personal` (solo activos); al editar, los asignados que se inactivaron aparecen marcados "(inactivo)". La ficha del colegio lista sus actividades con `GET /actividades?ue_id=`.
+
+**Validaciones y página publicada.** `validarPersona` y `validarActividad` dan en el navegador los mismos mensajes que la API. En la página publicada, `static-estado.js` guarda en las colecciones `personal`, `correcciones`, `actividades` e `historial` de la base compartida, con las mismas reglas y mensajes, y sanea lo que escriben otros visitantes. Sin base, las tres secciones avisan que solo funcionan con servidor o en claude.ai.
+
 ## Despliegue
 
 | Modo | Cómo | Notas |
