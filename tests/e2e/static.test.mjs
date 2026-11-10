@@ -228,3 +228,207 @@ test("HU-04: en claude.ai se registra un colegio en la base compartida, con las 
   assert.deepEqual(p3.errors, []);
   await p3.close();
 });
+
+// ---------------------------------------------------------------- sprint 3: Correcciones, Agenda y Personal
+/** Página publicada con la base compartida simulada (tests/agentes/mock-claude.js). */
+async function conBase(ctxOpts = {}) {
+  const ctx = await browser.newContext({ timezoneId: "America/La_Paz", ...ctxOpts });
+  const p = await ctx.newPage();
+  p.errors = [];
+  p.on("pageerror", (e) => p.errors.push(e.message));
+  await p.addInitScript({ path: path.join(ROOT, "tests/agentes/mock-claude.js") });
+  await p.route(/openstreetmap\.org|cartocdn\.com/, (r) => r.abort());
+  const vendor = path.join(ROOT, "app/frontend/vendor");
+  await p.route(/leaflet@1\.9\.4\/dist\/leaflet\.js$/, (r) => r.fulfill({ path: path.join(vendor, "leaflet/leaflet.js"), contentType: "text/javascript" }));
+  await p.route(/chart\.js@4\.4\.1\/dist\/chart\.umd\.js$/, (r) => r.fulfill({ path: path.join(vendor, "chart.umd.js"), contentType: "text/javascript" }));
+  await p.goto(`file://${html}`);
+  await p.locator("#bajas").waitFor({ state: "visible" });
+  await p.waitForFunction(() => document.querySelector(".content").getAttribute("aria-busy") === "false");
+  return p;
+}
+const guardados = (p, coleccion) => p.evaluate((c) => [...window.__store].filter(([k]) => k.startsWith(`${c}/`)), coleccion);
+const enviarEstatico = (p, metodo, ruta, body) => p.evaluate(([m, r, b]) => CONFIG.staticEstado.enviar(m, r, b)
+  .catch((e) => ({ status: e.status, errores: e.errores, message: e.message })), [metodo, ruta, body]);
+
+test("sprint 3: sin base compartida, Correcciones, Agenda y Personal avisan que sólo funcionan con servidor o en claude.ai", async () => {
+  for (const v of ["correcciones", "agenda", "personal"]) {
+    await page.click(`#nav a[data-vista=${v}]`);
+    const aviso = page.locator(`#${v}-aviso`);
+    await aviso.waitFor({ state: "visible" });
+    assert.match(await aviso.innerText(), /sólo funcionan en la versión con servidor o en la página publicada en claude\.ai/);
+    assert.ok(await page.locator(`#${v}-cuerpo`).isHidden());
+  }
+  assert.ok(await page.locator("#ag-nueva").isHidden());
+  assert.ok(await page.locator("#p-nuevo").isHidden());
+  await page.click("#nav a[data-vista=dashboard]");
+  await page.locator("#tabla tbody tr").first().click();
+  await page.locator("#detalle[open]").waitFor();
+  assert.equal(await page.locator("#detalle-actividades").count(), 0, "la ficha no ofrece agenda");
+  await page.keyboard.press("Escape");
+  assert.deepEqual(page.errors, []);
+});
+
+test("sprint 3: en claude.ai el personal se registra, edita e inactiva en la base compartida", async () => {
+  const p = await conBase();
+  await p.click("#nav a[data-vista=personal]");
+  await p.locator("#personal-estado", { hasText: "No hay personal activo" }).waitFor();
+  await p.click("#p-nuevo");
+  await p.click("#p-guardar");
+  assert.equal(await p.locator("#p-nombre-error").innerText(), "Escriba el nombre");
+  await p.fill("#p-nombre", " Lucía Apaza ");
+  await p.fill("#p-cargo", "Trabajadora social");
+  await p.fill("#p-correo", "lucia@ejemplo.bo");
+  await p.click("#p-guardar");
+  await p.locator("#tabla-personal tbody tr", { hasText: "Lucía Apaza" }).waitFor();
+  const [[clave, doc]] = await guardados(p, "personal");
+  const id = Number(clave.split("/")[1]);
+  assert.ok(id > 1e12, "id basado en Date.now()");
+  assert.equal(doc.nombre, "Lucía Apaza");
+  assert.equal(doc.telefono, null);
+  assert.equal(doc.activo, true);
+  // mismas reglas y mensajes que el backend
+  assert.deepEqual((await enviarEstatico(p, "POST", "personal", { nombre: "", cargo: 5, correo: "x" })).errores,
+    { nombre: "Escriba el nombre", cargo: "Debe ser un texto", correo: "Correo no válido" });
+  assert.deepEqual((await enviarEstatico(p, "PATCH", `personal/${id}`, { cargo: "Trabajadora social" })).errores, { general: "No hay cambios para guardar" });
+  assert.equal((await enviarEstatico(p, "PATCH", "personal/123", { cargo: "x" })).status, 404);
+  // editar e inactivar
+  await p.locator("#tabla-personal [data-editar]").click();
+  await p.fill("#p-telefono", "70000000");
+  await p.click("#p-guardar");
+  await p.locator("#tabla-personal tbody tr", { hasText: "70000000" }).waitFor();
+  await p.locator("#tabla-personal [data-activo]").click();
+  await p.locator("#personal-estado", { hasText: "No hay personal activo" }).waitFor();
+  assert.equal((await guardados(p, "personal"))[0][1].activo, false);
+  assert.ok((await guardados(p, "historial")).length >= 3, "una entrada en historial por cambio");
+  // otro visitante agrega a alguien (con HTML en el nombre): llega en vivo y se muestra como texto
+  await p.evaluate(() => window.claude.use("db").then((db) => db.doc("personal/1700000000000").set({ nombre: "<img src=x onerror=window.__xss=1>", cargo: "Vecino", activo: true })));
+  await p.locator("#tabla-personal tbody tr", { hasText: "<img src=x" }).waitFor();
+  assert.equal(await p.evaluate(() => window.__xss), undefined);
+  assert.deepEqual(p.errors, []);
+  await p.context().close();
+});
+
+test("sprint 3: en claude.ai se corrige un colegio en la base compartida, con las mismas reglas, y se ve en todo y en la bitácora", async () => {
+  const p = await conBase();
+  const kpi = async () => Number((await p.locator(".kpi b").first().innerText()).replace(/\D/g, ""));
+  const total = await kpi();
+  const u = (await remote("unidades", "q=DEMO 05&page_size=50")).results.find((x) => !x.turnos.includes("MANANA"));
+  await p.click("#nav a[data-vista=correcciones]");
+  await p.locator("#c-buscar").pressSequentially(u.nombre, { delay: 10 });
+  await p.locator("#c-buscar-lista [role=option]").first().waitFor();
+  await p.keyboard.press("ArrowDown");
+  await p.keyboard.press("Enter");
+  await p.locator("#form-correccion").waitFor({ state: "visible" });
+  assert.equal(await p.inputValue("#c-nombre"), u.nombre);
+  await p.click("#c-guardar");
+  assert.equal(await p.locator("#correccion-estado").innerText(), "No hay cambios para guardar.");
+  await p.fill("#c-nombre", "U.E. Corregida en el artifact");
+  await p.fill("#c-zona", "Zona Nueva");
+  await p.click("#c-guardar");
+  await p.locator("#correccion-ok").waitFor({ state: "visible" });
+  assert.match(await p.locator("#correccion-ok").innerText(), /Se guardaron 2 cambios/);
+  await p.locator("#bitacora-lista li", { hasText: "Corrección · u_cliente" }).waitFor();
+  assert.ok((await p.locator("#bitacora-lista li").first().innerText()).includes(`Nombre\t${u.nombre}\tU.E. Corregida en el artifact`));
+  const [[clave, doc]] = await guardados(p, "correcciones");
+  assert.equal(clave, `correcciones/${u.id}`);
+  assert.deepEqual(doc.campos, { nombre: "U.E. Corregida en el artifact", zona: "Zona Nueva" });
+  // en indicadores, listado y ficha
+  await p.click("#nav a[data-vista=dashboard]");
+  assert.equal(await kpi(), total);
+  await p.fill("#q", "Corregida en el artifact");
+  await p.locator("#tabla tbody tr", { hasText: "U.E. Corregida en el artifact" }).waitFor();
+  await p.locator("#tabla tbody tr").first().click();
+  await p.locator("#detalle[open]").waitFor();
+  assert.match(await p.locator("#detalle-body").innerText(), /Corregido por u_cliente[\s\S]*Zona Nueva/);
+  await p.keyboard.press("Escape");
+  // errores como en el backend: cuerpo no objeto, registro inválido, dado de baja (409), inexistente (404)
+  assert.deepEqual((await enviarEstatico(p, "PATCH", `unidades/${u.id}`, [1])).errores, { general: "Datos no válidos" });
+  assert.deepEqual((await enviarEstatico(p, "PATCH", `unidades/${u.id}`, { lat: -17 })).errores, { lat: "La ubicación está fuera del área de la ciudad" });
+  assert.equal((await enviarEstatico(p, "PATCH", "unidades/999999", { nombre: "x" })).status, 404);
+  await enviarEstatico(p, "POST", `unidades/${u.id}/baja`, { confirmar: true, motivo: "prueba" });
+  const r409 = await enviarEstatico(p, "PATCH", `unidades/${u.id}`, { nombre: "otra" });
+  assert.deepEqual([r409.status, r409.message], [409, "Reactive el colegio antes de corregirlo"]);
+  await enviarEstatico(p, "POST", `unidades/${u.id}/alta`, { confirmar: true });
+  // misma respuesta que el backend (antes y después con el tipo de la ficha; listas como conjunto; "" = null)
+  const otro = (await remote("unidades", "q=DEMO 06&page_size=50")).results.find((x) => !x.turnos.includes("MANANA"));
+  const body = { nombre: " U.E. Paridad corrección ", zona: "", telefono: null, distrito_municipal: otro.distrito_municipal === 3 ? 4 : 3,
+    niveles: otro.niveles.split(",").reverse(), lat: -16.51, extra: 1 };
+  const estatico = await enviarEstatico(p, "PATCH", `unidades/${otro.id}`, body);
+  const r = await fetch(`${BASE}/api/unidades/${otro.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal(r.status, 200);
+  const servidor = await r.json();
+  assert.deepEqual(estatico.cambios, servidor.cambios);
+  const comparable = (x) => Object.fromEntries(Object.entries(x).filter(([k, v]) => v != null && !["clave", "actualizado", "modificado"].includes(k)));
+  assert.deepEqual(comparable(estatico.unidad), comparable(servidor.unidad));
+  assert.deepEqual(Object.keys(estatico.unidad.modificado).sort(), Object.keys(servidor.unidad.modificado).sort());
+  const hist = await p.evaluate((id) => CONFIG.staticApi(`unidades/${id}/historial`), otro.id);
+  const histServidor = await remote(`unidades/${otro.id}/historial`);
+  assert.deepEqual(hist.map((h) => Object.keys(h).sort()), histServidor.map((h) => Object.keys(h).sort()));
+  assert.deepEqual(hist[0].cambios, histServidor[0].cambios);
+  // una corrección de otro visitante con datos raros se sanea
+  await p.evaluate((id) => window.claude.use("db").then((db) => db.doc(`correcciones/${id}`).set({ campos: { lat: "x", nombre: "<b>Vecino</b>", otro: 1 } })), otro.id);
+  await p.waitForFunction((id) => CONFIG.staticApi(`unidades/${id}`).nombre === "<b>Vecino</b>", otro.id);
+  assert.equal(typeof (await p.evaluate((id) => CONFIG.staticApi(`unidades/${id}`).lat, otro.id)), "number");
+  assert.deepEqual(p.errors, []);
+  await p.context().close();
+});
+
+test("sprint 3: en claude.ai se programa una actividad con encargados y personal, se cambia su estado y se ve en la ficha", async () => {
+  const p = await conBase({ viewport: { width: 390, height: 844 } });
+  const [enc, per] = await Promise.all(["Encargada Uno", "Personal Dos"].map((nombre) => enviarEstatico(p, "POST", "personal", { nombre, cargo: "Cargo" })));
+  const u = (await remote("unidades", "q=DEMO 07&page_size=1")).results[0];
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/La_Paz" }).format(new Date());
+  const fecha = `${hoy.slice(0, 7)}-01`;
+  await p.click("#menu");
+  await p.click("#nav a[data-vista=agenda]");
+  await p.locator("#ag-calendario table.mes").waitFor();
+  await p.click("#ag-nueva");
+  await p.locator("#a-encargados label", { hasText: "Encargada Uno" }).waitFor();
+  await p.locator("#a-ue_id").pressSequentially(u.nombre, { delay: 10 });
+  await p.locator("#a-ue_id-lista [role=option]").first().click();
+  await p.selectOption("#a-tipo", "VISITA");
+  await p.fill("#a-actividad", "Visita del artifact");
+  await p.fill("#a-fecha", fecha);
+  await p.fill("#a-hora", "07:45");
+  await p.fill("#a-lugar", "Portería");
+  await p.locator("#a-encargados label", { hasText: "Encargada Uno" }).click();
+  await p.locator("#a-personal label", { hasText: "Personal Dos" }).click();
+  await p.click("#a-guardar");
+  await p.locator(`#ag-calendario td[data-fecha="${fecha}"] .ev`).waitFor();
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "sin scroll horizontal a 390 px");
+  const [[clave, doc]] = await guardados(p, "actividades");
+  assert.ok(Number(clave.split("/")[1]) > 1e12);
+  assert.deepEqual([doc.ue_id, doc.tipo, doc.fecha, doc.hora, doc.encargados, doc.personal, doc.estado],
+    [u.id, "VISITA", fecha, "07:45", [enc.persona.id], [per.persona.id], "PENDIENTE"]);
+  // detalle y cambio de estado
+  await p.locator(`#ag-calendario td[data-fecha="${fecha}"] .ev`).click();
+  await p.locator("#actividad[open]").waitFor();
+  assert.match(await p.locator("#actividad-body").innerText(), /Encargada Uno[\s\S]*Personal Dos/);
+  await p.selectOption("#act-estado", "REALIZADA");
+  await p.click("#act-estado-form [type=submit]");
+  await p.locator("#actividad-body dd", { hasText: /^Realizada$/ }).waitFor();
+  await p.keyboard.press("Escape");
+  await p.locator(`#ag-calendario td[data-fecha="${fecha}"] .ev.estado-realizada`).waitFor();
+  // reglas del backend: personal inactivo no se asigna; rangos y filtros de la lista
+  await enviarEstatico(p, "PATCH", `personal/${per.persona.id}`, { activo: false });
+  const base = { ue_id: u.id, tipo: "reunión", actividad: "A", fecha, hora: "09:00", lugar: "L", encargados: [enc.persona.id] };
+  assert.deepEqual((await enviarEstatico(p, "POST", "actividades", { ...base, personal: [per.persona.id] })).errores, { personal: "Hay personas que no existen o están inactivas" });
+  const creada = await enviarEstatico(p, "POST", "actividades", base);
+  assert.equal(creada.actividad.tipo, "REUNION");
+  const id = (await guardados(p, "actividades")).map(([k]) => Number(k.split("/")[1])).find((x) => x !== creada.actividad.id);
+  assert.equal((await enviarEstatico(p, "PATCH", `actividades/${id}`, { lugar: "Otro" })).actividad.personal[0].activo, false, "el inactivo ya asignado se queda");
+  await assert.rejects(p.evaluate(() => CONFIG.staticApi("actividades", "desde=2026-01-01&hasta=2028-01-01")), /HTTP 422/);
+  assert.equal((await p.evaluate((id) => CONFIG.staticApi("actividades", `ue_id=${id}&estado=REALIZADA`), u.id)).length, 1);
+  // en la ficha del colegio
+  await p.click("#menu");
+  await p.click("#nav a[data-vista=dashboard]");
+  await p.evaluate((id) => showDetail(id), u.id);
+  await p.locator("#detalle-actividades li", { hasText: "Visita del artifact" }).waitFor();
+  assert.equal(await p.locator("#detalle-actividades li").count(), 2);
+  // una actividad de otro visitante con datos raros: sin fecha válida se ignora
+  await p.evaluate(() => window.claude.use("db").then((db) => db.doc("actividades/1700000000001").set({ ue_id: 1, fecha: "mañana", actividad: "<b>x</b>" })));
+  await p.waitForTimeout(100);
+  assert.equal(await p.evaluate(() => CONFIG.staticApi.actividad(1700000000001)), null);
+  assert.deepEqual(p.errors, []);
+  await p.context().close();
+});

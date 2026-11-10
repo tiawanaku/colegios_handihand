@@ -137,6 +137,7 @@ function createStaticApi(filas) {
     }
     if (ue != null && !/^-?\d+$/.test(ue)) http("actividades", 422);
     const estado = p.get("estado")?.toUpperCase();
+    if (estado && !["PENDIENTE", "REALIZADA", "POSTERGADA", "CANCELADA"].includes(estado)) http("actividades", 422);
     return actividades
       .filter((a) => (!desde || a.fecha >= desde) && (!hasta || a.fecha <= hasta) && (ue == null || a.ue_id === Number(ue)) && (!estado || a.estado === estado))
       .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora) || a.id - b.id)
@@ -147,6 +148,7 @@ function createStaticApi(filas) {
   const historialDe = (id) => historial.filter((h) => h.ue_id === id && ACCIONES_UNIDAD.includes(h.accion))
     .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))
     .map((h) => (h.accion === "modificacion" ? { accion: h.accion, usuario: h.usuario, fecha: h.fecha, cambios: h.cambios }
+      : h.accion === "registro" ? { accion: h.accion, usuario: h.usuario, fecha: h.fecha }
       : { accion: h.accion, motivo: h.motivo, usuario: h.usuario, fecha: h.fecha }));
 
   function staticApi(path, params) {
@@ -184,6 +186,7 @@ function createStaticApi(filas) {
   staticApi.existe = (id) => todas.some((r) => r.id === id);
   staticApi.estaDeBaja = (id) => bajas.has(id);
   staticApi.setBajas = (mapa) => { bajas = new Map(mapa); actualizar(); };
+  staticApi.setBaja = (id, datos) => { if (datos) bajas.set(id, datos); else bajas.delete(id); actualizar(); };
   staticApi.esDeLosDatos = (id) => filas.some((r) => r.id === id);
   // lista de [unidad, {usuario, fecha}]
   staticApi.setRegistros = (lista) => {

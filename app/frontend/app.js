@@ -703,13 +703,13 @@ function errorEn(pre, campo, mensaje) {
 }
 
 /** Cada error junto a su campo; los que no son de ningún campo van al aviso general (`estado`). */
-function mostrarErrores(pre, campos, errores, estado, resumen) {
+function mostrarErrores(pre, campos, errores, estado, resumen, { enfocar = true } = {}) {
   campos.forEach((c) => errorEn(pre, c, errores[c]));
   const otros = Object.entries(errores).filter(([c]) => !campos.includes(c)).map(([, m]) => m);
   const deCampo = campos.some((c) => errores[c]);
   estado(deCampo ? `${resumen}${otros.length ? `: ${otros.join("; ")}` : " marcados en el formulario."}` : otros.join("; "));
   const primero = campos.find((c) => errores[c]);
-  if (primero) controles(pre, primero)[0]?.focus();
+  if (primero && enfocar) controles(pre, primero)[0]?.focus();
 }
 
 function estadoEn(id, texto, tipo = "error") {
@@ -1152,7 +1152,10 @@ function mostrarCorreccion(u) {
   F.extraNiveles = correccion.base.niveles;
   renderOpcionesForm(F, opcionesRegistro);
   llenarForm(F, correccion.base);
-  mostrarErroresForm(F, {}, estadoCorreccion);
+  // el PATCH valida el registro completo: los datos de origen que no cumplen las reglas se marcan desde el inicio
+  const pendientes = validarRegistro(datosCorreccion(), opcionesRegistro);
+  mostrarErrores("c", CAMPOS_REGISTRO, pendientes, estadoCorreccion, "Complete los datos marcados para poder guardar", { enfocar: false });
+  if (Object.keys(pendientes).length) estadoCorreccion("Complete los datos marcados para poder guardar: este colegio tiene datos que no cumplen las reglas del registro.", "info");
   if (u.baja) estadoCorreccion(`Este colegio está dado de baja desde el ${fmtFecha(u.baja.fecha)}. Reactive el colegio antes de corregirlo.`, "info");
   F.form.hidden = false;
   mapaDe(F);
@@ -1400,11 +1403,12 @@ function validarActividad(b, { parcial = false, colegioValido = () => true, pers
     if (!entero(b.ue_id)) e.ue_id = "Elija el colegio";
     else if (!colegioValido(b.ue_id)) e.ue_id = "El colegio no existe o está dado de baja";
   }
-  if (tiene("tipo") && !(typeof b.tipo === "string" && TIPOS_ACTIVIDAD.includes(b.tipo.trim().toUpperCase())))
+  if (tiene("tipo") && !TIPOS_ACTIVIDAD.includes(tipoActividad(b.tipo)))
     e.tipo = "Elija el tipo: taller, visita, reunión u otra";
   for (const [c, faltante] of [["actividad", "Describa la actividad"], ["lugar", "Escriba el lugar"]]) {
     if (!tiene(c)) continue;
-    if (typeof b[c] !== "string" || !b[c].trim()) e[c] = faltante;
+    if (b[c] != null && typeof b[c] !== "string") e[c] = "Debe ser un texto";
+    else if (typeof b[c] !== "string" || !b[c].trim()) e[c] = faltante;
     else if (largo(b[c].trim()) > 200) e[c] = "No puede pasar de 200 caracteres";
   }
   if (tiene("fecha") && !fechaValida(b.fecha)) e.fecha = "Elija una fecha válida";
@@ -1415,7 +1419,7 @@ function validarActividad(b, { parcial = false, colegioValido = () => true, pers
     else if (!b[c].every((id) => entero(id) && personaValida(c, id))) e[c] = "Hay personas que no existen o están inactivas";
   }
   const n = b.asistentes_proyectados;
-  if (n != null && !(entero(n) && n >= 0)) e.asistentes_proyectados = "Debe ser un número entero de 0 o más";
+  if (n != null && !(entero(n) && n >= 0 && n <= 1_000_000)) e.asistentes_proyectados = "Debe ser un número entero de 0 o más";
   if (b.observaciones != null) {
     if (typeof b.observaciones !== "string") e.observaciones = "Debe ser un texto";
     else if (largo(b.observaciones.trim()) > 2000) e.observaciones = "No puede pasar de 2000 caracteres";
@@ -1424,6 +1428,9 @@ function validarActividad(b, { parcial = false, colegioValido = () => true, pers
     e.estado = "Estado no válido";
   return e;
 }
+
+/** Tipo normalizado como la API ("reunión" vale como REUNION). */
+const tipoActividad = (t) => (typeof t === "string" ? t.trim().toUpperCase().replace("REUNIÓN", "REUNION") : null);
 
 /** Mes que muestra la agenda: [año, mes 1-12]. */
 const mesAgenda = () => (state.agMes || mesDeHoy()).split("-").map(Number);
@@ -1663,8 +1670,8 @@ async function guardarActividad(ev) {
   const form = $("#form-actividad"), a = actividadEditando, datos = datosActividad();
   // al editar, los que ya estaban asignados (aunque estén inactivos) pueden quedarse
   const activos = new Set([...form.querySelectorAll("fieldset input")].filter((i) => !i.closest("label").querySelector(".marca-inactivo")).map((i) => Number(i.value)));
-  const previos = { encargados: new Set((a?.encargados ?? []).map((p) => p.id)), personal: new Set((a?.personal ?? []).map((p) => p.id)) };
-  const errores = validarActividad(datos, { personaValida: (lista, id) => activos.has(id) || previos[lista].has(id) });
+  const previos = new Set([...(a?.encargados ?? []), ...(a?.personal ?? [])].map((p) => p.id)); // como encargado o como personal
+  const errores = validarActividad(datos, { personaValida: (_, id) => activos.has(id) || previos.has(id) });
   mostrarErrores("a", CAMPOS_ACTIVIDAD, errores, estadoActividad, "Revise los datos de la actividad");
   if (Object.keys(errores).length) return;
   let cuerpo = datos;

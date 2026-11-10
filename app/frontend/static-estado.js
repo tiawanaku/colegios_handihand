@@ -66,11 +66,12 @@ function crearEstadoArtifact(api) {
   function historialDe(d) {
     if (!esObjeto(d) || !entero(d.ue_id)) return null;
     const cambios = Array.isArray(d.cambios) ? d.cambios.filter((c) => esObjeto(c) && CAMPOS.includes(c.campo))
-      .map((c) => ({ campo: c.campo, antes: texto(c.antes), despues: texto(c.despues) })) : [];
+      .map((c) => ({ campo: c.campo, antes: valorHist(c.campo, c.antes), despues: valorHist(c.campo, c.despues) })) : [];
     return { ue_id: entero(d.ue_id), accion: String(d.accion ?? ""), motivo: texto(d.motivo), usuario: String(d.usuario ?? "anónimo"),
       fecha: String(d.fecha ?? ""), cambios };
   }
 
+  const valorHist = (c, v) => (v == null || v === "" ? null : NUMERICOS.includes(c) && typeof v === "number" ? v : String(v));
   const docsCon = (docs, crear) => docs.map((d) => (entero(d.id) ? crear(entero(d.id), d.data()) : null)).filter(Boolean);
 
   /** Primera carga de la colección (antes de mostrar nada) y, después, cambios de otros visitantes en vivo. */
@@ -138,8 +139,11 @@ function crearEstadoArtifact(api) {
     const errores = validarRegistro(completo, op);
     if (Object.keys(errores).length) throw invalido("Revise los datos del colegio", errores);
     const limpio = limpiarRegistro(completo, op);
-    const cambios = Object.keys(enviados).map((campo) => ({ campo, antes: texto(actual[campo]), despues: texto(limpio[campo]) }))
-      .filter((c) => c.antes !== c.despues);
+    // antes y después con el tipo de la ficha (números, listas en CSV, vacío = null); las listas se comparan como conjunto
+    const valor = (c, v) => (v == null || v === "" ? null : NUMERICOS.includes(c) ? v : String(v));
+    const igual = (c, x, y) => (["niveles", "turnos"].includes(c) ? csvLista(x).sort().join() === csvLista(y).sort().join() : x === y);
+    const cambios = Object.keys(enviados).map((campo) => ({ campo, antes: valor(campo, actual[campo]), despues: valor(campo, limpio[campo]) }))
+      .filter((c) => !igual(c.campo, c.antes, c.despues));
     if (!cambios.length) throw invalido("Revise los datos del colegio", { general: "No hay cambios para guardar" });
     const campos = { ...(api.correccionDe(id) ?? {}), ...Object.fromEntries(cambios.map((c) => [c.campo, limpio[c.campo] ?? null])) };
     const meta = { usuario: usuario(), fecha: ahora() };
@@ -188,7 +192,7 @@ function crearEstadoArtifact(api) {
     const a = {};
     const unicos = (v) => [...new Set(v ?? [])];
     if ("ue_id" in b) a.ue_id = b.ue_id;
-    if ("tipo" in b) a.tipo = b.tipo.trim().toUpperCase();
+    if ("tipo" in b) a.tipo = tipoActividad(b.tipo);
     for (const c of ["actividad", "lugar", "fecha", "hora"]) if (c in b) a[c] = b[c].trim();
     if ("encargados" in b) a.encargados = unicos(b.encargados);
     if ("personal" in b) a.personal = unicos(b.personal);
@@ -215,9 +219,10 @@ function crearEstadoArtifact(api) {
   async function editarActividad(id, body) {
     const actual = api.actividad(id);
     if (!actual) throw error(404, "Actividad no encontrada");
-    // las personas inactivas que ya estaban asignadas pueden quedarse; no se pueden agregar
-    const personaValida = (lista, pid) => api.persona(pid)?.activo === true || actual[lista].includes(pid);
-    const errores = validarActividad(body, { parcial: true, colegioValido, personaValida });
+    // las personas inactivas que ya estaban asignadas (como encargado o personal) pueden quedarse; no se pueden agregar
+    const personaValida = (_, pid) => api.persona(pid)?.activo === true || actual.encargados.includes(pid) || actual.personal.includes(pid);
+    // puede conservar su colegio aunque ahora esté de baja, pero no pasar a otro de baja
+    const errores = validarActividad(body, { parcial: true, colegioValido: (id) => id === actual.ue_id || colegioValido(id), personaValida });
     if (Object.keys(errores).length) throw invalido("Revise los datos de la actividad", errores);
     const igual = (x, y) => (Array.isArray(x) ? [...x].sort().join() === [...y].sort().join() : (x ?? null) === (y ?? null));
     const cambios = Object.fromEntries(Object.entries(limpiarActividad(body)).filter(([c, v]) => !igual(actual[c], v)));
@@ -238,12 +243,15 @@ function crearEstadoArtifact(api) {
       const motivo = String(body.motivo ?? "").trim();
       if (!motivo || motivo.length > 300) throw error(422, "Motivo obligatorio (máximo 300 caracteres)");
       if (api.estaDeBaja(id)) throw error(409, "Ya estaba dada de baja");
-      await db.doc(`bajas/${id}`).set({ fecha: ahora(), motivo, usuario: usuario() });
+      const baja = { fecha: ahora(), motivo, usuario: usuario() };
+      await db.doc(`bajas/${id}`).set(baja);
+      api.setBaja(id, baja); // vigente ya, sin esperar el aviso de la base
       await registrar(id, "baja", motivo);
       return { ok: true, id, estado: "baja" };
     }
     if (!api.estaDeBaja(id)) throw error(409, "No estaba dada de baja");
     await db.doc(`bajas/${id}`).delete();
+    api.setBaja(id, null);
     await registrar(id, "alta");
     return { ok: true, id, estado: "activa" };
   }
