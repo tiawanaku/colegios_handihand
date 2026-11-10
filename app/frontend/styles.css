@@ -136,12 +136,12 @@ button:focus-visible, button.enlace:focus-visible, .confirmar textarea:focus-vis
   .menu { display: inline-flex; }
   .nav:not(.abierta) { display: none; }
 }
-.vista { display: grid; gap: 16px; min-width: 0; position: relative; }
+.vista { display: grid; gap: 16px; min-width: 0; position: relative; align-content: start; }
 .vista:focus { outline: none; }
 .proximo p { margin: 0 0 6px; }
 .info { color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 0; }
 /* Registro de colegios (HU-04) */
-.registro { display: grid; gap: 12px; }
+.registro { display: grid; gap: 12px; align-content: start; } /* que no reparta el alto sobrante entre filas */
 .registro h2 { margin: 0; }
 .registro form { display: grid; gap: 16px; }
 .registro form > p { margin: 0; }
