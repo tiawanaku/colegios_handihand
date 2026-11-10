@@ -102,7 +102,7 @@ def respaldar(engine: Engine) -> Path | None:
 
 def init_auth_db(engine: Engine | None = None) -> None:
     """Crea las tablas que falten y agrega columnas nuevas a las existentes (con respaldo previo)."""
-    from . import estado, registro  # noqa: F401  (registra unidad_estado, su historial y unidad_registrada en AuthModel)
+    from . import actividades, correcciones, estado, personal, registro  # noqa: F401  (registran sus tablas en AuthModel)
 
     engine = engine or auth_engine
     AuthModel.metadata.create_all(engine)

@@ -3,8 +3,8 @@
     COLEGIOS_DB=postgresql+psycopg://usuario@host/cuidados python -m app.build_static dist/colegios.html
     python -m app.build_static dist/colegios.html --fragment   # sin <html>/<head>/<body> (p. ej. claude.ai)
 
-Lee la tabla/vista `unidad_educativa` de COLEGIOS_DB (sin las dadas de baja en COLEGIOS_AUTH_DB y con los colegios
-registrados en `unidad_registrada`), la incrusta como JSON y usa static-api.js para
+Lee la tabla/vista `unidad_educativa` de COLEGIOS_DB (sin las dadas de baja en COLEGIOS_AUTH_DB, con las correcciones de
+`unidad_correccion` y con los colegios registrados en `unidad_registrada`), la incrusta como JSON y usa static-api.js para
 responder la misma API en el navegador. Leaflet y Chart.js se cargan de jsDelivr; su CSS va incrustado.
 Incluye mapa base (OpenStreetMap y, si no carga, CARTO); si ninguno está disponible se dibujan rótulos
 de distrito. Pasa --sin-tiles para no pedir mapas base externos.
@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy import inspect
 from sqlmodel import Session, col, select
 
-from .backend import auth, estado, registro
+from .backend import auth, correcciones, estado, registro
 from .backend.db import engine
 from .backend.main import EXPORT_FIELDS
 from .backend.models import UnidadEducativa
@@ -30,14 +30,16 @@ CHART_JS = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"
 
 
 def filas() -> list[dict]:
-    # sin las dadas de baja y con los colegios registrados, igual que la API
-    # (si la BD del sistema aún no tiene las tablas, no hay bajas ni registrados)
+    # sin las dadas de baja, con las correcciones y con los colegios registrados, igual que la API
+    # (si la BD del sistema aún no tiene las tablas, no hay bajas, correcciones ni registrados)
     tablas = inspect(auth.auth_engine)
     bajas = estado.ids_de_baja() if tablas.has_table("unidad_estado") else set()
     registrados = registro.todas() if tablas.has_table("unidad_registrada") else []
+    corr = correcciones.todas() if tablas.has_table("unidad_correccion") else {}
     with Session(engine) as s:
         rows = s.exec(select(UnidadEducativa).where(col(UnidadEducativa.id).not_in(bajas))
                       .order_by(UnidadEducativa.id)).all()
+    rows = [correcciones.aplicar(r, corr.get(r.id)) for r in rows]
     salida = [{k: v for k, v in r.model_dump().items() if k in EXPORT_FIELDS and v is not None} for r in rows]
     for r in registrados:
         if r.id not in bajas:

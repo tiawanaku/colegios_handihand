@@ -14,8 +14,8 @@ const PORT = 9200 + Math.floor(Math.random() * 300);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PY = process.env.PYTHON || "python3";
 const TILES = /openstreetmap\.org|cartocdn\.com/;
-const OPCIONES = ["Dashboard", "Registro", "Modificación", "Agenda", "Estadísticas"];
-const VISTAS = ["dashboard", "registro", "modificacion", "agenda", "estadisticas"];
+const OPCIONES = ["Dashboard", "Registro", "Correcciones", "Agenda", "Personal", "Estadísticas"];
+const VISTAS = ["dashboard", "registro", "correcciones", "agenda", "personal", "estadisticas"];
 let server, browser, tmp;
 
 before(async () => {
@@ -55,7 +55,7 @@ const actual = (page) => page.locator("#nav a[aria-current=page]").innerText();
 const sinScrollHorizontal = (page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
 const sumaDep = (page) => page.evaluate(() => charts["ch-dep"].data.datasets[0].data.reduce((a, b) => a + b, 0));
 
-test("HU-03: la barra lateral muestra las cinco opciones y el Dashboard marcado por defecto", async () => {
+test("HU-03: la barra lateral muestra las seis opciones y el Dashboard marcado por defecto", async () => {
   const page = await open();
   assert.deepEqual(await page.locator("#nav a").allInnerTexts(), OPCIONES);
   assert.ok(await page.locator("#nav").isVisible());
@@ -82,15 +82,22 @@ test("HU-03: elegir cada opción abre su sección, la marca y la guarda en la UR
     assert.equal(await page.locator("#kpis").isVisible(), conFiltros, `indicadores en ${nombre}`);
     assert.equal(await page.evaluate(() => document.activeElement.id), `vista-${VISTAS[i]}`, "el foco pasa a la sección");
   }
-  for (const v of ["modificacion", "agenda"]) {
+  // las secciones del sprint 3 ya no son "próximamente": muestran su contenido
+  const contenido = { correcciones: "#c-buscar", agenda: "#ag-calendario table.mes", personal: "#personal-cuerpo" };
+  for (const [v, sel] of Object.entries(contenido)) {
     await page.click(`#nav a[data-vista=${v}]`);
-    assert.match(await page.locator(`#vista-${v}`).innerText(), /Disponible en el próximo sprint/);
+    await page.locator(sel).waitFor({ state: "visible" });
+    assert.doesNotMatch(await page.locator(`#vista-${v}`).innerText(), /próximo sprint/);
   }
   // atrás y adelante del navegador recorren las secciones visitadas
   await page.goBack();
-  assert.equal(await actual(page), "Modificación");
-  await page.goForward();
   assert.equal(await actual(page), "Agenda");
+  await page.goForward();
+  assert.equal(await actual(page), "Personal");
+  // los enlaces del sprint 2 (?vista=modificacion) abren Correcciones
+  const vieja = await open("?vista=modificacion");
+  assert.equal(await actual(vieja), "Correcciones");
+  await vieja.context().close();
   // teclado: Tab llega a las opciones y Enter las abre
   await page.locator("#nav a[data-vista=estadisticas]").focus();
   await page.keyboard.press("Enter");
@@ -112,7 +119,7 @@ test("HU-03: una URL compartida con la sección la abre en otro navegador", asyn
   assert.equal(await kpiTotal(copia), (await api("estadisticas?dependencia=CONVENIO")).total_unidades);
   // los enlaces de la barra llevan el mismo estado (abrir en otra pestaña da la misma vista)
   assert.match(await copia.locator("#nav a[data-vista=registro]").getAttribute("href"), /dependencia=CONVENIO&vista=registro/);
-  for (const v of ["registro", "agenda"]) {
+  for (const v of ["registro", "correcciones", "agenda", "personal"]) {
     const p = await open(`?vista=${v}`);
     assert.equal(await p.locator("#nav a[aria-current]").getAttribute("data-vista"), v);
     assert.ok(await p.locator(".filters").isHidden());
@@ -161,7 +168,7 @@ for (const colorScheme of ["light", "dark"]) {
     assert.equal(await menu.getAttribute("aria-expanded"), "false");
     assert.equal(await page.evaluate(() => document.activeElement.id), "menu");
     // elegir una opción también cierra
-    for (const v of ["registro", "estadisticas", "agenda", "dashboard"]) {
+    for (const v of ["registro", "correcciones", "agenda", "personal", "estadisticas", "dashboard"]) {
       await menu.click();
       await page.click(`#nav a[data-vista=${v}]`);
       assert.ok(await page.locator("#nav").isHidden(), `se cierra al elegir ${v}`);

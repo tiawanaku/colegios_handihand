@@ -84,7 +84,10 @@ La página estática (`app.build_static`) no tiene login: quien tenga el archivo
 | `GET /api/catalogos` | Valores de los filtros |
 | `GET /api/export.{csv,xlsx,pdf}` | Exportación (el PDF sigue el formato del "Reporte de Unidades Educativas" original). Sin botones en la interfaz |
 | `POST /api/unidades/{id}/baja` · `POST /api/unidades/{id}/alta` | Baja lógica y reactivación con `confirmar: true` (rol encargado) |
-| `GET /api/bajas` · `GET /api/unidades/{id}/historial` | Colegios dados de baja e historial de altas y bajas (rol encargado) |
+| `GET /api/bajas` · `GET /api/unidades/{id}/historial` | Colegios dados de baja e historial de altas, bajas, correcciones y registro (rol encargado) |
+| `PATCH /api/unidades/{id}` | Corrige los datos de un colegio (rol encargado) con las reglas del registro; se ve en todo el dashboard y deja bitácora campo a campo (`unidad_correccion`, `unidad_cambio`) |
+| `GET/POST /api/personal` · `PATCH /api/personal/{id}` | Personal de la organización (sesión obligatoria); se inactiva en vez de borrarse |
+| `GET/POST /api/actividades` · `PATCH /api/actividades/{id}` | Agenda de actividades en los colegios con encargados y personal (sesión obligatoria). Filtros `desde`, `hasta`, `ue_id`, `estado` |
 | `POST /api/unidades` | Registra un colegio nuevo (cualquier usuario con sesión). Se guarda en la tabla propia `unidad_registrada` (ids desde 1.000.000) y aparece en todo el dashboard. Errores: 422 `{detail, errores: {campo: mensaje}}`. Ver `docs/04-frontend.md` |
 
 Todos aceptan los filtros `dependencia`, `distrito`, `nivel` y `turno` (repetibles), además de `subsistema`, `q`, `bbox` y `con_coordenadas`.

@@ -178,7 +178,7 @@ test("HU-04: guardar un colegio válido lo muestra en indicadores, mapa, listado
   // escribir la ubicación mueve el marcador
   await page.fill("#r-lat", "-16.5123");
   await page.fill("#r-lon", "-68.1777");
-  assert.deepEqual(await page.evaluate(() => [marcadorRegistro.getLatLng().lat, marcadorRegistro.getLatLng().lng]), [-16.5123, -68.1777]);
+  assert.deepEqual(await page.evaluate(() => [formularios.r.marcador.getLatLng().lat, formularios.r.marcador.getLatLng().lng]), [-16.5123, -68.1777]);
   await page.click("#r-guardar");
   await page.locator("#registro-ok").waitFor({ state: "visible" });
   await settle(page);

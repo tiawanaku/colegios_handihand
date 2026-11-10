@@ -47,7 +47,7 @@ Filtros comunes, repetibles y combinados con AND entre filtros y OR dentro de ca
 | `GET /estadisticas?<filtros>` | `{total_unidades, por_dependencia: {DEP: n}, por_nivel: {NIVEL: n}, por_distrito: {"8": {DEP: n}}, estudiantes: {total}, ratio_estudiante_docente}` |
 | `GET /geojson?<filtros>` | `FeatureCollection` de puntos con `properties: {id, nombre, dependencia}` |
 | `GET /unidades?<filtros>&page&page_size&orden` | `{count, results: [{id, nombre, distrito_municipal, dependencia, direccion, niveles, turnos, estudiantes_total}]}`. `orden` puede ser `nombre`, `distrito_municipal`, `dependencia` o `estudiantes_total`, con `-` delante para orden descendente |
-| `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran). Un colegio registrado desde el dashboard trae además `registrado: true` y `registro: {usuario, fecha}`; los de la vista no traen esas claves |
+| `GET /unidades/{id}` | Registro completo (los campos vacíos no se muestran). Un colegio registrado desde el dashboard trae además `registrado: true` y `registro: {usuario, fecha}`; los de la vista no traen esas claves. Si tuvo correcciones trae `modificado: {usuario, fecha}` con la última |
 | `GET /export.{csv,xlsx,pdf}?<filtros>` | Archivo. Siguen en el backend (exigen sesión) para los futuros informes; la interfaz ya no muestra botones de exportar |
 | `GET /auth/sesion` | `{requerida, usuario, nombre, rol}`. `rol` es `"consulta"` o `"encargado"` (null sin sesión). Con el login desactivado: `{requerida: false, usuario: null, nombre: null, rol: "encargado"}` |
 
@@ -63,7 +63,7 @@ Sin sesión responden 401; con rol `consulta`, 403 (el rol se revisa antes que e
 | `POST /unidades/{id}/baja` | `{motivo: str, confirmar: true}` | 200 `{ok: true, id, estado: "baja"}`. 422 si `confirmar` no es exactamente `true` o el motivo está vacío o pasa de 300 caracteres; 404 si no existe; 409 si ya estaba de baja |
 | `POST /unidades/{id}/alta` | `{confirmar: true}` | 200 `{ok: true, id, estado: "activa"}`. 422 sin confirmar; 404; 409 si no estaba de baja |
 | `GET /bajas` | | `[{id, nombre, distrito_municipal, dependencia, fecha_baja, motivo, usuario}]`, la baja más reciente primero |
-| `GET /unidades/{id}/historial` | | `[{accion: "baja" \| "alta", motivo, usuario, fecha}]`, lo más reciente primero (`motivo` es null en las altas); 404 si no existe |
+| `GET /unidades/{id}/historial` | | Lo más reciente primero; 404 si no existe. Entradas `{accion: "baja" \| "alta", motivo, usuario, fecha}` (`motivo` es null en las altas), `{accion: "modificacion", usuario, fecha, cambios: [{campo, antes, despues}]}` (una por guardado) y, en los registrados, `{accion: "registro", usuario, fecha}` (la más antigua) |
 
 Cada baja o alta guarda el usuario de la sesión (`"dev"` con el login desactivado) y la fecha. Los errores llegan como `{detail}`; en los 422 de validación del cuerpo, `detail` puede ser una lista (formato de FastAPI).
 
@@ -114,6 +114,81 @@ ordenados con `sorted()` de Python.
 Los registrados se combinan con la vista en `/unidades` (filtros, `q`, orden y paginación sobre el conjunto combinado),
 `/geojson`, `/estadisticas`, `/catalogos`, `/unidades/{id}`, `/bajas`, `/export.*` y en las filas de la página estática
 (`build_static.filas()`, con `registrado: true`). Se pueden dar de baja y de alta como cualquier colegio.
+
+### Correcciones (HU-08, rol encargado)
+
+`PATCH /unidades/{id}` con cualquier subconjunto de los campos del registro (`nombre`, `dependencia`, `subsistema`,
+`distrito_municipal`, `direccion`, `zona`, `telefono`, `niveles`, `turnos`, `lat`, `lon`); los demás se ignoran. Vale
+para colegios de la vista y registrados. Sin sesión 401; con `COLEGIOS_TODOS_ENCARGADOS=0` y rol `consulta`, 403.
+
+- Lo enviado se pone encima de los datos actuales y se valida el **registro resultante completo** con las reglas, los
+  mensajes y la normalización de `POST /unidades` (tabla de arriba). Un colegio de la vista con datos que no cumplen
+  esas reglas (p. ej. sin coordenadas, dependencia `COMUNITARIA` o dos subsistemas) da 422 en esos campos aunque no se
+  hayan enviado: el formulario debe mandarlos corregidos.
+- Sólo cuentan como cambio los campos **enviados** cuyo valor normalizado difiere del actual. En `niveles` y `turnos` se
+  compara el conjunto (reordenar no es un cambio); en `zona` y `telefono`, `""` y null son lo mismo.
+- **200** `{ok: true, id, unidad, cambios: [{campo, antes, despues}]}`. `unidad` es la ficha (con `modificado`).
+  `antes` y `despues` tienen el tipo de la ficha: texto, número (`distrito_municipal`, `lat`, `lon`), null, y las listas
+  como texto separado por comas (`"MAÑANA,TARDE"`).
+- **422** `{detail: "Revise los datos del colegio", errores}`. Sin cambios reales (cuerpo vacío, sólo campos
+  desconocidos o los mismos valores): `errores: {general: "No hay cambios para guardar"}`. Cuerpo que no es un objeto
+  JSON: `errores: {general: "Datos no válidos"}`.
+- **404** si no existe; **409** `{detail: "Reactive el colegio antes de corregirlo"}` si está dado de baja.
+
+Las correcciones se aplican en todo: `/unidades` (filtros, `q`, orden y paginación sobre los valores corregidos),
+`/geojson`, `/estadisticas`, `/catalogos` (también `opciones_registro.niveles`), `/unidades/{id}`, `/bajas`,
+`/export.*`, `/actividades` (nombre del colegio) y `build_static.filas()`.
+
+### Personal (HU-10, cualquier usuario con sesión)
+
+| Endpoint | Respuesta |
+|---|---|
+| `GET /personal[?incluir_inactivos=1]` | `[{id, nombre, cargo, telefono, correo, activo, creado, actualizado}]` ordenado por nombre sin distinguir mayúsculas. Sin el parámetro, sólo los activos |
+| `POST /personal` `{nombre, cargo, telefono?, correo?}` | 201 `{ok: true, persona}` (siempre activo; `activo` se ignora en el alta) |
+| `PATCH /personal/{id}` con un subconjunto de `{nombre, cargo, telefono, correo, activo}` | 200 `{ok: true, persona}`; 404 si no existe; 422 `general: "No hay cambios para guardar"` |
+
+422 `{detail: "Revise los datos del personal", errores}`: `nombre: "Escriba el nombre"`, `cargo: "Escriba el cargo"`,
+`correo: "Correo no válido"` (forma `algo@algo.algo`), `"Debe ser un texto"`, `"No puede pasar de N caracteres"`
+(nombre 150, cargo 100, telefono 50, correo 150), `activo: "Valor no válido"` (no booleano), `general: "Datos no
+válidos"` (cuerpo que no es objeto). Se quitan los espacios de los extremos; `telefono` y `correo` vacíos quedan null.
+
+### Agenda (HU-09, cualquier usuario con sesión)
+
+Fecha y hora son locales de La Paz, texto `YYYY-MM-DD` y `HH:MM`.
+
+| Endpoint | Respuesta |
+|---|---|
+| `GET /actividades?desde&hasta&ue_id&estado` | Lista ordenada por fecha, hora e id. Todos los parámetros son opcionales (`desde`/`hasta` también por separado) |
+| `POST /actividades` | 201 `{ok: true, actividad}` |
+| `PATCH /actividades/{id}` con un subconjunto de campos (incluido `estado`) | 200 `{ok: true, actividad}`; 404; 422 `general: "No hay cambios para guardar"` |
+
+Cada actividad: `{id, ue_id, colegio: {id, nombre}, tipo, actividad, fecha, hora, lugar, encargados: [{id, nombre,
+cargo, activo}], personal: [...], asistentes_proyectados, observaciones, estado, creado, creado_por, actualizado,
+actualizado_por}`. `colegio.nombre` sale con las correcciones (null si el colegio ya no existe en la vista).
+
+422 `{detail: "Revise los datos de la actividad", errores}`:
+
+| Campo | Regla y mensaje |
+|---|---|
+| `ue_id` | entero: `"Elija el colegio"`; debe existir y no estar de baja: `"El colegio no existe o está dado de baja"` (en un PATCH, el colegio que ya tenía puede quedarse aunque esté de baja) |
+| `tipo` | `TALLER`, `VISITA`, `REUNION` (también `reunión`) u `OTRA`: `"Elija el tipo: taller, visita, reunión u otra"` |
+| `actividad` | `"Describa la actividad"`; más de 200: `"No puede pasar de 200 caracteres"` |
+| `fecha` | `"Elija una fecha válida"` |
+| `hora` | `HH:MM` de 00:00 a 23:59: `"Elija una hora válida"` |
+| `lugar` | `"Escriba el lugar"`; más de 200: `"No puede pasar de 200 caracteres"` |
+| `encargados` | lista de ids no vacía: `"Elija al menos un encargado"`; ids inexistentes, inactivos o que no son enteros: `"Hay personas que no existen o están inactivas"` |
+| `personal` | lista de ids (opcional): `"Hay personas que no existen o están inactivas"` |
+| `asistentes_proyectados` | null o entero de 0 a 1.000.000: `"Debe ser un número entero de 0 o más"` |
+| `observaciones` | más de 2000: `"No puede pasar de 2000 caracteres"`; vacío = null |
+| `estado` | `PENDIENTE` (por defecto), `REALIZADA`, `POSTERGADA`, `CANCELADA`: `"Estado no válido"` |
+
+Un texto que no es string da `"Debe ser un texto"`. `tipo` y `estado` se aceptan en minúsculas; las listas de ids se
+guardan sin repetir y en el orden recibido. Una persona inactiva no puede entrar en una actividad nueva ni agregarse en
+un PATCH, pero si ya estaba en esa actividad (como encargado o personal) puede quedarse.
+
+En `GET /actividades`, `desde`/`hasta` inválidos dan `"Elija una fecha válida"`; `hasta` anterior a `desde`,
+`hasta: "Debe ser igual o posterior a la fecha inicial"`; más de 400 días, `hasta: "El rango no puede pasar de 400
+días"`; `estado` desconocido, `"Estado no válido"`; `ue_id` no entero, `"Elija el colegio"`.
 
 `niveles` y `turnos` son strings separados por comas: pueden ser códigos (`INICIAL`) o los valores del catálogo de la BD de cuidados (`PRIMARIA COMUNITARIA VOCACIONAL`). Las etiquetas salen del diccionario `LABEL` de `app.js`; un valor desconocido en MAYÚSCULAS se muestra en tipo oración, y el orden lógico está en `ORDEN`.
 

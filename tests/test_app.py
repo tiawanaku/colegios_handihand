@@ -607,7 +607,7 @@ def test_registrado_baja_alta_y_exportes(client):
         "fecha_baja": None, "motivo": "Error de carga", "usuario": "analista"}
     assert client.post(f"{url}/alta", json={"confirmar": True}).status_code == 200
     assert visible(client, ue) == (total + 1, True)
-    assert [h["accion"] for h in client.get(f"{url}/historial").json()] == ["alta", "baja"]
+    assert [h["accion"] for h in client.get(f"{url}/historial").json()] == ["alta", "baja", "registro"]
     assert client.post("/api/unidades/1000001/baja", json={"motivo": "x", "confirmar": True}).status_code == 404
 
 

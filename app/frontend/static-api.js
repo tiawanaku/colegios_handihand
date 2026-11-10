@@ -9,9 +9,19 @@ function createStaticApi(filas) {
   let bajas = new Map();
   // Colegios registrados en la página (ids ≥ 1.000.000, `registrado: true`): se mezclan con los demás en todo.
   let registros = [], metaRegistros = new Map(); // id → {usuario, fecha} para la ficha
+  // Correcciones (id → campos corregidos; null = campo vaciado), personal, actividades e historial: también de la base.
+  let correcciones = new Map(), personal = [], actividades = [], historial = [];
   let todas = filas, rows = filas;
+  const corregir = (r) => {
+    const c = correcciones.get(r.id);
+    if (!c) return r;
+    const u = { ...r };
+    for (const [k, v] of Object.entries(c)) { if (v == null) delete u[k]; else u[k] = v; }
+    return u;
+  };
   const actualizar = () => {
     todas = registros.length ? [...filas, ...registros] : filas;
+    if (correcciones.size) todas = todas.map(corregir);
     rows = todas.filter((r) => !bajas.has(r.id));
   };
   const lista = (csv) => (csv ? String(csv).split(",").filter(Boolean) : []);
@@ -98,8 +108,54 @@ function createStaticApi(filas) {
     return { count: sel.length, page, page_size: size, results: sel.slice((page - 1) * size, page * size) };
   }
 
+  const SI = ["1", "true", "yes", "on"];
+  const http = (path, status) => { throw new Error(`${path}: HTTP ${status}`); };
+  const porNombre = (a, b) => { const [x, y] = [a.nombre.toLowerCase(), b.nombre.toLowerCase()]; return x < y ? -1 : x > y ? 1 : a.id - b.id; };
+  const esFecha = (s) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const [y, m, d] = s.split("-").map(Number), f = new Date(y, m - 1, d);
+    return f.getFullYear() === y && f.getMonth() === m - 1 && f.getDate() === d;
+  };
+
+  /** Actividad como la devuelve GET /api/actividades: con el colegio y las personas (nombre, cargo, activo). */
+  function actividadCompleta(a) {
+    const pers = new Map(personal.map((x) => [x.id, x]));
+    const ref = (id) => { const x = pers.get(id); return { id, nombre: x?.nombre ?? null, cargo: x?.cargo ?? null, activo: x?.activo ?? false }; };
+    const u = todas.find((r) => r.id === a.ue_id);
+    return { id: a.id, ue_id: a.ue_id, colegio: { id: a.ue_id, nombre: u?.nombre ?? null }, tipo: a.tipo, actividad: a.actividad, fecha: a.fecha,
+      hora: a.hora, lugar: a.lugar, encargados: a.encargados.map(ref), personal: a.personal.map(ref),
+      asistentes_proyectados: a.asistentes_proyectados, observaciones: a.observaciones, estado: a.estado,
+      creado: a.creado, creado_por: a.creado_por, actualizado: a.actualizado, actualizado_por: a.actualizado_por };
+  }
+
+  function listarActividades(p) {
+    const [desde, hasta, ue] = ["desde", "hasta", "ue_id"].map((k) => p.get(k));
+    if ((desde != null && !esFecha(desde)) || (hasta != null && !esFecha(hasta))) http("actividades", 422);
+    if (desde && hasta) {
+      const dia = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d) / 864e5; }; // sólo para contar días
+      if (dia(hasta) < dia(desde) || dia(hasta) - dia(desde) > 400) http("actividades", 422);
+    }
+    if (ue != null && !/^-?\d+$/.test(ue)) http("actividades", 422);
+    const estado = p.get("estado")?.toUpperCase();
+    return actividades
+      .filter((a) => (!desde || a.fecha >= desde) && (!hasta || a.fecha <= hasta) && (ue == null || a.ue_id === Number(ue)) && (!estado || a.estado === estado))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora) || a.id - b.id)
+      .map(actividadCompleta);
+  }
+
+  const ACCIONES_UNIDAD = ["registro", "baja", "alta", "modificacion"];
+  const historialDe = (id) => historial.filter((h) => h.ue_id === id && ACCIONES_UNIDAD.includes(h.accion))
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))
+    .map((h) => (h.accion === "modificacion" ? { accion: h.accion, usuario: h.usuario, fecha: h.fecha, cambios: h.cambios }
+      : { accion: h.accion, motivo: h.motivo, usuario: h.usuario, fecha: h.fecha }));
+
   function staticApi(path, params) {
     const p = new URLSearchParams(params ?? "");
+    if (path === "personal") return personal.filter((x) => x.activo || SI.includes(String(p.get("incluir_inactivos")).toLowerCase()))
+      .sort(porNombre).map(({ id, nombre, cargo, telefono, correo, activo, creado, actualizado }) => ({ id, nombre, cargo, telefono, correo, activo, creado, actualizado }));
+    if (path === "actividades") return listarActividades(p);
+    const h = /^unidades\/(\d+)\/historial$/.exec(path);
+    if (h) return todas.some((r) => r.id === Number(h[1])) ? historialDe(Number(h[1])) : http(path, 404);
     if (path === "catalogos") return catalogos();
     if (path === "estadisticas") return estadisticas(filtrar(p));
     if (path === "unidades") return unidades(p);
@@ -118,7 +174,9 @@ function createStaticApi(filas) {
     if (m) {
       const r = todas.find((x) => String(x.id) === decodeURIComponent(m[1]));
       if (!r) throw new Error(`${path}: HTTP 404`);
-      const ficha = metaRegistros.has(r.id) ? { ...r, registro: metaRegistros.get(r.id) } : r;
+      const ficha = metaRegistros.has(r.id) ? { ...r, registro: metaRegistros.get(r.id) } : { ...r };
+      const ultima = historialDe(r.id).find((x) => x.accion === "modificacion");
+      if (ultima) ficha.modificado = { usuario: ultima.usuario, fecha: ultima.fecha };
       return bajas.has(r.id) ? { ...ficha, baja: bajas.get(r.id) } : ficha;
     }
     throw new Error(`${path}: HTTP 404`);
@@ -139,5 +197,19 @@ function createStaticApi(filas) {
     actualizar();
   };
   staticApi.cantidadRegistros = () => registros.length;
+  // lista de [id, campos corregidos]
+  staticApi.setCorrecciones = (lista) => { correcciones = new Map(lista); actualizar(); };
+  staticApi.correccionDe = (id) => correcciones.get(id) ?? null;
+  staticApi.setCorreccion = (id, campos) => { correcciones.set(id, campos); actualizar(); };
+  staticApi.cantidadCorrecciones = () => correcciones.size;
+  staticApi.setPersonal = (lista) => { personal = lista; };
+  staticApi.persona = (id) => personal.find((x) => x.id === id) ?? null;
+  staticApi.guardarPersona = (x) => { personal = [...personal.filter((y) => y.id !== x.id), x]; };
+  staticApi.setActividades = (lista) => { actividades = lista; };
+  staticApi.actividad = (id) => actividades.find((x) => x.id === id) ?? null;
+  staticApi.guardarActividad = (x) => { actividades = [...actividades.filter((y) => y.id !== x.id), x]; };
+  staticApi.actividadCompleta = actividadCompleta;
+  staticApi.setHistorial = (lista) => { historial = lista; };
+  staticApi.agregarHistorial = (h) => { historial = [...historial, h]; };
   return staticApi;
 }

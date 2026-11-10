@@ -51,7 +51,7 @@ se guarda en tablas propias de la BD del sistema (`COLEGIOS_AUTH_DB`, la misma d
 | `unidad_estado` | `ue_id` (PK, = `unidad_educativa.id`), `activo`, `fecha_baja`, `motivo`, `usuario` |
 | `unidad_estado_historial` | `id`, `ue_id`, `accion` (`baja` \| `alta`), `motivo`, `usuario`, `fecha` (UTC) |
 
-El backend (`solo_activas` en `main.py`, `app/backend/estado.py`) excluye esos ids con `id NOT IN (...)` en unidades,
+El backend (`vista_sin_cambios` en `main.py`, `app/backend/estado.py`) excluye esos ids con `id NOT IN (...)` en unidades,
 mapa, estadísticas, catálogos, exportaciones y la página estática. La consulta de los dados de baja es `GET /api/bajas`.
 Las tablas se crean al arrancar; si hay que alterar una tabla existente de una BD SQLite (p. ej. agregar `usuario.rol`)
 se copia antes a `<archivo>.bak-<fecha>`. En PostgreSQL haga un `pg_dump` antes de desplegar.
@@ -67,6 +67,21 @@ se escriben en `core_*` ni en la vista: van a la tabla propia `unidad_registrada
 catálogos, ficha, bajas, exportaciones y la página estática). Las bajas de `unidad_estado` también aplican a ellos.
 La tabla se crea al arrancar si no existe (no altera las demás). Si el colegio luego se carga en la BD de cuidados,
 quedaría duplicado: hay que darlo de baja en el dashboard.
+
+**Correcciones (HU-08), personal (HU-10) y agenda (HU-09).** También en tablas propias de la BD del sistema, creadas
+al arrancar (`init_auth_db`) sin alterar las existentes:
+
+| Tabla | Columnas |
+|---|---|
+| `unidad_correccion` | `ue_id` (PK, = `unidad_educativa.id`), un valor por campo editable (`nombre`, `dependencia`, `subsistema`, `distrito_municipal`, `direccion`, `zona`, `telefono`, `niveles`, `turnos`, `lat`, `lon`; null = sin corregir, `""` en `zona`/`telefono` = corregido a vacío), `usuario` y `fecha` de la última corrección |
+| `unidad_cambio` | `id`, `ue_id`, `campo`, `antes`, `despues` (texto; listas separadas por comas), `usuario`, `fecha` (UTC). Una fila por campo cambiado; las de un mismo guardado comparten usuario y fecha |
+| `personal` | `id`, `nombre`, `cargo`, `telefono`, `correo`, `activo`, `creado`, `actualizado`, `usuario` (último cambio) |
+| `actividad` | `id`, `ue_id`, `tipo`, `actividad`, `fecha` (`YYYY-MM-DD`), `hora` (`HH:MM`), `lugar`, `encargados` y `personal` (ids de `personal` separados por comas), `asistentes_proyectados`, `observaciones`, `estado`, `creado`, `creado_por`, `actualizado`, `actualizado_por` |
+
+Las correcciones de colegios de la vista no tocan la vista: `vista_sin_cambios` en `main.py` saca de la consulta SQL los
+ids dados de baja y los corregidos, y `fuera_de_sql` los vuelve a sumar en Python con lo corregido encima (igual que los
+registrados), así filtros, búsqueda, orden y paginación usan los valores corregidos. Un colegio registrado se corrige en
+su propia fila de `unidad_registrada`. `app/backend/correcciones.py`, `personal.py` y `actividades.py`.
 
 Cómo probarlo: `COLEGIOS_PG_TEST_URL=... pytest tests/test_postgres_cuidados.py` compara la API con consultas directas al EAV (11 pruebas; todas pasan con este dump).
 

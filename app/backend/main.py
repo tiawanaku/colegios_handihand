@@ -9,6 +9,7 @@ import io
 import json
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -22,7 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, StrictBool
 from sqlmodel import Session, col, func, or_, select
 
-from . import auth, estado, registro
+from . import actividades, auth, correcciones, estado, personal, registro
 from .db import engine, init_db
 from .models import UnidadEducativa
 from .pdf_report import build_pdf
@@ -116,6 +117,19 @@ def exigir_encargado(request: Request) -> str:
 EncargadoDep = Annotated[str, Depends(exigir_encargado)]
 
 
+def exigir_usuario(request: Request) -> str:
+    """Usuario que firma el cambio cuando basta con tener sesión (cualquier rol); "dev" sin login."""
+    if not auth.AUTH_ENABLED:
+        return "dev"
+    u = getattr(request.state, "usuario", None)
+    if u is None:
+        raise HTTPException(401, "Sesión requerida")
+    return u.usuario
+
+
+UsuarioDep = Annotated[str, Depends(exigir_usuario)]
+
+
 def get_session():
     with Session(engine) as session:
         yield session
@@ -124,10 +138,24 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def solo_activas(stmt):
-    """Excluye las unidades dadas de baja (tabla propia en la BD del sistema, no en la vista)."""
-    bajas = estado.ids_de_baja()
-    return stmt.where(col(UnidadEducativa.id).not_in(bajas)) if bajas else stmt
+def vista_sin_cambios(stmt):
+    """Excluye de la consulta a la vista las unidades dadas de baja y las corregidas (tablas propias de la BD del
+    sistema). Las corregidas vuelven, con sus valores corregidos, por fuera_de_sql()."""
+    fuera = estado.ids_de_baja() | correcciones.ids()
+    return stmt.where(col(UnidadEducativa.id).not_in(fuera)) if fuera else stmt
+
+
+def corregidas(session: Session) -> list[UnidadEducativa]:
+    corr = correcciones.todas()
+    if not corr:
+        return []
+    filas = session.exec(select(UnidadEducativa).where(col(UnidadEducativa.id).in_(list(corr)))).all()
+    return [correcciones.aplicar(u, corr[u.id]) for u in filas]
+
+
+def fuera_de_sql(session: Session) -> list[UnidadEducativa]:
+    """Colegios que se combinan en Python: los de la vista con correcciones y los registrados (incluye bajas)."""
+    return corregidas(session) + [registro.a_unidad(r) for r in registro.todas()]
 
 
 def _en_lista(column, valores: list[str]):
@@ -155,7 +183,7 @@ class Filtros:
 
     def apply(self, stmt):
         U = UnidadEducativa
-        stmt = solo_activas(stmt)
+        stmt = vista_sin_cambios(stmt)
         if self.dependencia:
             stmt = stmt.where(col(U.dependencia).in_([d.upper() for d in self.dependencia]))
         if self.distrito:
@@ -188,10 +216,10 @@ class Filtros:
             raise HTTPException(422, "bbox debe ser minLon,minLat,maxLon,maxLat")
         return x1, y1, x2, y2
 
-    def registrados(self) -> list[UnidadEducativa]:
-        """Colegios registrados (tabla propia) activos que pasan los mismos filtros que apply() en SQL."""
+    def extras(self, session: Session) -> list[UnidadEducativa]:
+        """Colegios de fuera_de_sql() activos que pasan los mismos filtros que apply() en SQL."""
         bajas, caja = estado.ids_de_baja(), self._caja()
-        return [u for u in map(registro.a_unidad, registro.todas()) if u.id not in bajas and self._cumple(u, caja)]
+        return [u for u in fuera_de_sql(session) if u.id not in bajas and self._cumple(u, caja)]
 
     def _cumple(self, u: UnidadEducativa, caja) -> bool:
         items = lambda v: set((v or "").split(","))
@@ -212,8 +240,8 @@ class Filtros:
         return self.con_coordenadas is None or self.con_coordenadas == con_coord
 
     def todas(self, session: Session, stmt=None) -> list[UnidadEducativa]:
-        """Vista filtrada más registrados filtrados."""
-        return list(session.exec(self.apply(stmt if stmt is not None else select(UnidadEducativa))).all()) + self.registrados()
+        """Vista filtrada más corregidos y registrados filtrados."""
+        return list(session.exec(self.apply(stmt if stmt is not None else select(UnidadEducativa))).all()) + self.extras(session)
 
 
 def _ordenar(rows: list, campo: str, desc: bool) -> list:
@@ -238,8 +266,8 @@ def listar(
     campo = orden.lstrip("-")
     if campo not in ORDENABLES:
         raise HTTPException(422, f"orden debe ser uno de {sorted(ORDENABLES)}")
-    if extra := filtros.registrados():
-        # con colegios registrados se combina y pagina en Python (son pocos cientos de filas)
+    if extra := filtros.extras(session):
+        # con colegios corregidos o registrados se combina y pagina en Python (son pocos cientos de filas)
         todas = _ordenar(list(session.exec(filtros.apply(select(UnidadEducativa))).all()) + extra, campo, desc)
         total, rows = len(todas), todas[(page - 1) * page_size:page * page_size]
     else:
@@ -258,7 +286,8 @@ def listar(
 def _buscar(session: Session, ue_id: int) -> tuple[UnidadEducativa | None, registro.UnidadRegistrada | None]:
     if (reg := registro.obtener(ue_id)) is not None:
         return registro.a_unidad(reg), reg
-    return session.get(UnidadEducativa, ue_id), None
+    row = session.get(UnidadEducativa, ue_id)
+    return (correcciones.aplicar(row, correcciones.obtener(ue_id)) if row is not None else None), None
 
 
 def _ficha(row: UnidadEducativa, reg: registro.UnidadRegistrada | None) -> dict:
@@ -268,6 +297,8 @@ def _ficha(row: UnidadEducativa, reg: registro.UnidadRegistrada | None) -> dict:
         datos["registro"] = {"usuario": reg.usuario, "fecha": estado.iso(reg.creado)}
     if (e := estado.de_baja(row.id)) is not None:
         datos["baja"] = {"fecha": estado.iso(e.fecha_baja), "motivo": e.motivo, "usuario": e.usuario}
+    if (m := correcciones.ultima(row.id)) is not None:
+        datos["modificado"] = {"usuario": m.usuario, "fecha": estado.iso(m.fecha)}
     return datos
 
 
@@ -282,28 +313,57 @@ def detalle(ue_id: int, session: SessionDep):
 MAX_CUERPO = 64 * 1024
 
 
-@app.post("/api/unidades", tags=["registro"], status_code=201)
-async def registrar_unidad(request: Request):
-    """Registra un colegio nuevo (cualquier usuario con sesión). Los errores de validación llegan como
-    422 `{detail, errores: {campo: mensaje}}`, también si el JSON está mal formado."""
-    if auth.AUTH_ENABLED:
-        u = getattr(request.state, "usuario", None)
-        if u is None:
-            raise HTTPException(401, "Sesión requerida")
-        usuario = u.usuario
-    else:
-        usuario = "dev"
+async def _cuerpo(request: Request):
+    """JSON del cuerpo, o None si está mal formado o es demasiado grande (la validación lo informa en `general`)."""
     cuerpo = await request.body()
     try:
-        datos = json.loads(cuerpo) if len(cuerpo) <= MAX_CUERPO else None
+        return json.loads(cuerpo) if len(cuerpo) <= MAX_CUERPO else None
     except (ValueError, RecursionError):
-        datos = None
+        return None
+
+
+def _error(detail: str, errores: dict) -> JSONResponse:
+    return JSONResponse({"detail": detail, "errores": errores}, status_code=422)
+
+
+def _ok(datos: dict, status_code: int = 200) -> JSONResponse:
+    return JSONResponse(jsonable_encoder(datos), status_code=status_code)
+
+
+@app.post("/api/unidades", tags=["registro"], status_code=201)
+async def registrar_unidad(request: Request, usuario: UsuarioDep):
+    """Registra un colegio nuevo (cualquier usuario con sesión). Los errores de validación llegan como
+    422 `{detail, errores: {campo: mensaje}}`, también si el JSON está mal formado."""
+    datos = await _cuerpo(request)
     try:
         reg = await run_in_threadpool(registro.registrar, datos, usuario)
     except registro.ErrorValidacion as e:
-        return JSONResponse({"detail": "Revise los datos del colegio", "errores": e.errores}, status_code=422)
+        return _error("Revise los datos del colegio", e.errores)
     unidad = _ficha(registro.a_unidad(reg), reg)
-    return JSONResponse(jsonable_encoder({"ok": True, "id": reg.id, "unidad": unidad}), status_code=201)
+    return _ok({"ok": True, "id": reg.id, "unidad": unidad}, 201)
+
+
+def _guardar_correccion(ue_id: int, datos, usuario: str) -> tuple[list[dict], dict]:
+    with Session(engine) as session:
+        row, reg = _buscar(session, ue_id)
+        if row is None:
+            raise HTTPException(404, "Unidad educativa no encontrada")
+        if estado.de_baja(ue_id) is not None:
+            raise HTTPException(409, "Reactive el colegio antes de corregirlo")
+        cambios = correcciones.corregir(row, reg, datos, usuario)
+        return cambios, _ficha(*_buscar(session, ue_id))
+
+
+@app.patch("/api/unidades/{ue_id}", tags=["correcciones"])
+async def corregir_unidad(ue_id: int, request: Request, usuario: EncargadoDep):
+    """Corrige los datos de un colegio (vista o registrado). Valida el registro resultante completo con las reglas
+    de POST /api/unidades y deja en la bitácora antes y después de cada campo cambiado."""
+    datos = await _cuerpo(request)
+    try:
+        cambios, unidad = await run_in_threadpool(_guardar_correccion, ue_id, datos, usuario)
+    except registro.ErrorValidacion as e:
+        return _error("Revise los datos del colegio", e.errores)
+    return _ok({"ok": True, "id": ue_id, "unidad": unidad, "cambios": cambios})
 
 
 class Baja(BaseModel):
@@ -354,7 +414,10 @@ def dar_alta(ue_id: int, datos: Alta, session: SessionDep, usuario: EncargadoDep
 @app.get("/api/unidades/{ue_id}/historial", tags=["estado"])
 def historial(ue_id: int, session: SessionDep, _usuario: EncargadoDep):
     _existente(session, ue_id)
-    return estado.historial(ue_id)
+    entradas = estado.historial(ue_id) + correcciones.historial(ue_id)
+    if (reg := registro.obtener(ue_id)) is not None:
+        entradas.append({"accion": "registro", "usuario": reg.usuario, "fecha": estado.iso(reg.creado)})
+    return sorted(entradas, key=lambda h: datetime.fromisoformat(h["fecha"]), reverse=True)
 
 
 @app.get("/api/bajas", tags=["estado"])
@@ -362,15 +425,27 @@ def listar_bajas(session: SessionDep, _usuario: EncargadoDep):
     """Unidades dadas de baja, la más reciente primero. Nombre y demás datos salen de la vista."""
     filas = estado.bajas()
     U = UnidadEducativa
-    unidades = {u.id: u for u in session.exec(select(U).where(col(U.id).in_([f.ue_id for f in filas])))} if filas else {}
-    if filas and any(f.ue_id >= registro.PRIMER_ID for f in filas):
-        unidades.update((r.id, registro.a_unidad(r)) for r in registro.todas())
+    unidades = _unidades(session, {f.ue_id for f in filas})
     return [
         {"id": f.ue_id, "nombre": (u := unidades.get(f.ue_id)) and u.nombre,
          "distrito_municipal": u and u.distrito_municipal, "dependencia": u and u.dependencia,
          "fecha_baja": estado.iso(f.fecha_baja), "motivo": f.motivo, "usuario": f.usuario}
         for f in filas
     ]
+
+
+def _unidades(session: Session, ids: set[int]) -> dict[int, UnidadEducativa]:
+    """Colegios por id tal como se ven (vista con correcciones o registrados), sin importar si están de baja."""
+    if not ids:
+        return {}
+    U = UnidadEducativa
+    vista = [i for i in ids if 0 < i < registro.PRIMER_ID]
+    corr = correcciones.todas() if vista else {}
+    unidades = {u.id: correcciones.aplicar(u, corr.get(u.id))
+                for u in session.exec(select(U).where(col(U.id).in_(vista)))} if vista else {}
+    if any(i >= registro.PRIMER_ID for i in ids):
+        unidades.update((r.id, registro.a_unidad(r)) for r in registro.todas() if r.id in ids)
+    return unidades
 
 
 @app.get("/api/geojson", tags=["mapa"])
@@ -431,21 +506,25 @@ def estadisticas(session: SessionDep, filtros: FiltrosDep):
 @app.get("/api/catalogos", tags=["indicadores"])
 def catalogos(session: SessionDep):
     U = UnidadEducativa
-    distritos = session.exec(solo_activas(select(U.distrito_municipal).where(col(U.distrito_municipal).is_not(None)).distinct())).all()
+    distritos = session.exec(vista_sin_cambios(select(U.distrito_municipal).where(col(U.distrito_municipal).is_not(None)).distinct())).all()
     niveles, turnos, subsistemas = set(), set(), set()
-    for n, t, sub in session.exec(solo_activas(select(U.niveles, U.turnos, U.subsistema))).all():
+    for n, t, sub in session.exec(vista_sin_cambios(select(U.niveles, U.turnos, U.subsistema))).all():
         niveles.update(filter(None, (n or "").split(",")))
         turnos.update(filter(None, (t or "").split(",")))
         subsistemas.update(filter(None, (sub or "").split(",")))
-    deps = set(session.exec(solo_activas(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct())).all())
+    deps = set(session.exec(vista_sin_cambios(select(U.dependencia).where(col(U.dependencia).is_not(None)).distinct())).all())
     distritos = set(distritos)
-    for r in Filtros().registrados():
-        niveles.update(filter(None, r.niveles.split(",")))
-        turnos.update(filter(None, r.turnos.split(",")))
-        subsistemas.update(filter(None, r.subsistema.split(",")))
-        deps.add(r.dependencia)
-        distritos.add(r.distrito_municipal)
-    con_matricula = session.exec(solo_activas(select(U.id).where(col(U.estudiantes_total).is_not(None))).limit(1)).first() is not None
+    extras = Filtros().extras(session)   # corregidos y registrados activos
+    for r in extras:
+        niveles.update(filter(None, (r.niveles or "").split(",")))
+        turnos.update(filter(None, (r.turnos or "").split(",")))
+        subsistemas.update(filter(None, (r.subsistema or "").split(",")))
+        if r.dependencia is not None:
+            deps.add(r.dependencia)
+        if r.distrito_municipal is not None:
+            distritos.add(r.distrito_municipal)
+    con_matricula = (session.exec(vista_sin_cambios(select(U.id).where(col(U.estudiantes_total).is_not(None))).limit(1)).first() is not None
+                     or any(r.estudiantes_total is not None for r in extras))
     return {"dependencias": sorted(deps), "distritos": sorted(distritos), "niveles": sorted(niveles),
             "turnos": sorted(turnos), "subsistemas": sorted(subsistemas),
             "campos": {"matricula": con_matricula},
@@ -457,7 +536,7 @@ def catalogos(session: SessionDep):
 @app.get("/api/export.{fmt}", tags=["exportar"])
 def exportar(fmt: str, session: SessionDep, filtros: FiltrosDep):
     rows = session.exec(filtros.apply(select(UnidadEducativa)).order_by(UnidadEducativa.distrito_municipal, UnidadEducativa.nombre)).all()
-    if extra := filtros.registrados():
+    if extra := filtros.extras(session):
         rows = sorted([*rows, *extra], key=lambda r: (r.distrito_municipal is None, r.distrito_municipal or 0, r.nombre))
     if fmt == "csv":
         buf = io.StringIO()
@@ -488,6 +567,83 @@ def exportar(fmt: str, session: SessionDep, filtros: FiltrosDep):
         return Response(build_pdf(rows), media_type="application/pdf",
                         headers={"Content-Disposition": "attachment; filename=unidades_educativas.pdf"})
     raise HTTPException(404, "Formato no soportado: csv, xlsx, pdf")
+
+
+# ---------------------------------------------------------------- HU-10: personal de la organización
+@app.get("/api/personal", tags=["personal"])
+def listar_personal(_usuario: UsuarioDep, incluir_inactivos: bool = False):
+    return [personal.a_dict(p) for p in personal.listar(incluir_inactivos)]
+
+
+@app.post("/api/personal", tags=["personal"], status_code=201)
+async def crear_persona(request: Request, usuario: UsuarioDep):
+    datos = await _cuerpo(request)
+    try:
+        p = await run_in_threadpool(personal.crear, datos, usuario)
+    except personal.ErrorValidacion as e:
+        return _error("Revise los datos del personal", e.errores)
+    return _ok({"ok": True, "persona": personal.a_dict(p)}, 201)
+
+
+@app.patch("/api/personal/{pid}", tags=["personal"])
+async def modificar_persona(pid: int, request: Request, usuario: UsuarioDep):
+    datos = await _cuerpo(request)
+    try:
+        p = await run_in_threadpool(personal.modificar, pid, datos, usuario)
+    except personal.NoExiste:
+        raise HTTPException(404, "Persona no encontrada")
+    except personal.ErrorValidacion as e:
+        return _error("Revise los datos del personal", e.errores)
+    return _ok({"ok": True, "persona": personal.a_dict(p)})
+
+
+# ---------------------------------------------------------------- HU-09: agenda de actividades
+def _colegio_activo(ue_id: int) -> bool:
+    if not 0 < ue_id <= personal.MAX_ID:
+        return False
+    with Session(engine) as session:
+        return _buscar(session, ue_id)[0] is not None and estado.de_baja(ue_id) is None
+
+
+def _actividades(acts: list) -> list[dict]:
+    with Session(engine) as session:
+        unidades = _unidades(session, {a.ue_id for a in acts})
+    return actividades.a_dicts(acts, {i: u.nombre for i, u in unidades.items()})
+
+
+@app.get("/api/actividades", tags=["agenda"])
+def listar_actividades(
+    _usuario: UsuarioDep, desde: str | None = None, hasta: str | None = None, ue_id: str | None = None,
+    estado_: Annotated[str | None, Query(alias="estado")] = None,
+):
+    """Actividades ordenadas por fecha y hora. Todos los filtros son opcionales; el rango es de 400 días como máximo."""
+    try:
+        f = actividades.filtros(desde, hasta, ue_id, estado_)
+    except actividades.ErrorValidacion as e:
+        return _error("Revise los datos de la actividad", e.errores)
+    return _actividades(actividades.listar(**f))
+
+
+@app.post("/api/actividades", tags=["agenda"], status_code=201)
+async def crear_actividad(request: Request, usuario: UsuarioDep):
+    datos = await _cuerpo(request)
+    try:
+        a = await run_in_threadpool(actividades.crear, datos, usuario, _colegio_activo)
+    except actividades.ErrorValidacion as e:
+        return _error("Revise los datos de la actividad", e.errores)
+    return _ok({"ok": True, "actividad": (await run_in_threadpool(_actividades, [a]))[0]}, 201)
+
+
+@app.patch("/api/actividades/{aid}", tags=["agenda"])
+async def modificar_actividad(aid: int, request: Request, usuario: UsuarioDep):
+    datos = await _cuerpo(request)
+    try:
+        a = await run_in_threadpool(actividades.modificar, aid, datos, usuario, _colegio_activo)
+    except actividades.NoExiste:
+        raise HTTPException(404, "Actividad no encontrada")
+    except actividades.ErrorValidacion as e:
+        return _error("Revise los datos de la actividad", e.errores)
+    return _ok({"ok": True, "actividad": (await run_in_threadpool(_actividades, [a]))[0]})
 
 
 app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")

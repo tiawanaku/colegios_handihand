@@ -20,8 +20,9 @@
     <ul>
       <li><a href="./" data-vista="dashboard" aria-current="page">Dashboard</a></li>
       <li><a href="?vista=registro" data-vista="registro">Registro</a></li>
-      <li><a href="?vista=modificacion" data-vista="modificacion">Modificación</a></li>
+      <li><a href="?vista=correcciones" data-vista="correcciones">Correcciones</a></li>
       <li><a href="?vista=agenda" data-vista="agenda">Agenda</a></li>
+      <li><a href="?vista=personal" data-vista="personal">Personal</a></li>
       <li><a href="?vista=estadisticas" data-vista="estadisticas">Estadísticas</a></li>
     </ul>
   </nav>
@@ -117,21 +118,131 @@
       </div>
     </div>
 
-    <div id="vista-modificacion" class="vista" role="region" aria-labelledby="modificacion-titulo" tabindex="-1" hidden>
-      <div class="card proximo"><h2 id="modificacion-titulo">Modificación</h2>
-        <p><strong>Disponible en el próximo sprint.</strong></p>
-        <p class="muted">Aquí se podrán corregir los datos de un colegio ya registrado (dirección, niveles, turnos y ubicación).</p></div>
+    <div id="vista-correcciones" class="vista" role="region" aria-labelledby="correcciones-titulo" tabindex="-1" hidden>
+      <div class="card registro">
+        <h2 id="correcciones-titulo">Correcciones</h2>
+        <p id="correcciones-aviso" class="info" hidden></p>
+        <div id="correcciones-cuerpo" class="buscador">
+          <label for="c-buscar" id="c-buscar-label">Buscar el colegio que quiere corregir</label>
+          <input id="c-buscar" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="c-buscar-lista" aria-describedby="c-buscar-estado" autocomplete="off" placeholder="Escriba parte del nombre, la dirección o el RUE">
+          <ul id="c-buscar-lista" class="sugerencias" role="listbox" aria-labelledby="c-buscar-label" hidden></ul>
+          <p id="c-buscar-estado" class="muted" aria-live="polite"></p>
+        </div>
+      </div>
+      <div id="correccion" class="card registro" hidden>
+        <h2 id="correccion-titulo">Registro del colegio</h2>
+        <p id="correccion-meta" class="muted" hidden></p>
+        <div id="correccion-ok" class="aviso" role="status" aria-live="polite" hidden></div>
+        <p id="correccion-estado" class="error-inline" role="alert" hidden></p>
+        <form id="form-correccion" novalidate hidden></form>
+      </div>
+      <div id="bitacora" class="card" hidden>
+        <h2 id="bitacora-titulo">Bitácora de cambios</h2>
+        <p id="bitacora-estado" class="muted" aria-live="polite"></p>
+        <ol id="bitacora-lista" class="bitacora" aria-labelledby="bitacora-titulo"></ol>
+      </div>
     </div>
 
     <div id="vista-agenda" class="vista" role="region" aria-labelledby="agenda-titulo" tabindex="-1" hidden>
-      <div class="card proximo"><h2 id="agenda-titulo">Agenda</h2>
-        <p><strong>Disponible en el próximo sprint.</strong></p>
-        <p class="muted">Aquí se podrán anotar y consultar las visitas y actividades programadas con cada colegio.</p></div>
+      <div class="card agenda">
+        <div class="cabecera"><h2 id="agenda-titulo">Agenda</h2><button id="ag-nueva" type="button" class="primario" hidden>Nueva actividad</button></div>
+        <p id="agenda-aviso" class="info" hidden></p>
+        <div id="agenda-cuerpo" hidden>
+          <div class="agenda-barra">
+            <div class="agenda-nav" role="group" aria-label="Cambiar de mes">
+              <button id="ag-anterior" type="button" aria-label="Mes anterior">‹</button>
+              <button id="ag-hoy" type="button">Hoy</button>
+              <button id="ag-siguiente" type="button" aria-label="Mes siguiente">›</button>
+              <h3 id="ag-mes" aria-live="polite"></h3>
+            </div>
+            <div class="segmentos" role="group" aria-label="Forma de ver la agenda">
+              <button type="button" data-modo="mes" aria-pressed="true">Mes</button><button type="button" data-modo="lista" aria-pressed="false">Lista</button>
+            </div>
+          </div>
+          <div class="agenda-filtros">
+            <div class="buscador">
+              <label for="ag-colegio" id="ag-colegio-label">Colegio</label>
+              <div class="con-boton">
+                <input id="ag-colegio" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ag-colegio-lista" aria-describedby="ag-colegio-estado" autocomplete="off" placeholder="Todos los colegios">
+                <button id="ag-colegio-quitar" type="button" hidden>Quitar</button>
+              </div>
+              <ul id="ag-colegio-lista" class="sugerencias" role="listbox" aria-labelledby="ag-colegio-label" hidden></ul>
+              <p id="ag-colegio-estado" class="muted" aria-live="polite"></p>
+            </div>
+            <div class="campo"><label for="ag-estado">Estado</label><select id="ag-estado"></select></div>
+          </div>
+          <p id="ag-carga" class="muted" aria-live="polite"></p>
+          <div id="ag-calendario" class="table-wrap"></div>
+          <div id="ag-lista" class="agenda-lista" hidden></div>
+        </div>
+      </div>
+      <div id="ag-form-card" class="card registro" hidden>
+        <h2 id="ag-form-titulo" tabindex="-1">Nueva actividad</h2>
+        <p id="ag-form-estado" class="error-inline" role="alert" hidden></p>
+        <form id="form-actividad" novalidate>
+          <p class="muted">Los campos marcados con * son obligatorios.</p>
+          <div class="campos">
+            <div class="campo ancho buscador">
+              <label for="a-ue_id" id="a-ue_id-label">Colegio *</label>
+              <input id="a-ue_id" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="a-ue_id-lista" aria-describedby="a-ue_id-estado a-ue_id-error" autocomplete="off" placeholder="Escriba parte del nombre">
+              <ul id="a-ue_id-lista" class="sugerencias" role="listbox" aria-labelledby="a-ue_id-label" hidden></ul>
+              <p id="a-ue_id-estado" class="muted" aria-live="polite"></p>
+              <p id="a-ue_id-error" class="error-campo" hidden></p>
+            </div>
+            <div class="campo"><label for="a-tipo">Tipo *</label><select id="a-tipo" name="tipo" aria-describedby="a-tipo-error"></select><p id="a-tipo-error" class="error-campo" hidden></p></div>
+            <div class="campo ancho"><label for="a-actividad">Actividad *</label><input id="a-actividad" name="actividad" maxlength="200" autocomplete="off" aria-describedby="a-actividad-error"><p id="a-actividad-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="a-fecha">Fecha *</label><input id="a-fecha" name="fecha" type="date" aria-describedby="a-fecha-error"><p id="a-fecha-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="a-hora">Hora *</label><input id="a-hora" name="hora" type="time" aria-describedby="a-hora-error"><p id="a-hora-error" class="error-campo" hidden></p></div>
+            <div class="campo ancho"><label for="a-lugar">Lugar *</label><input id="a-lugar" name="lugar" maxlength="200" autocomplete="off" aria-describedby="a-lugar-error"><p id="a-lugar-error" class="error-campo" hidden></p></div>
+          </div>
+          <p id="a-personal-aviso" class="info" hidden></p>
+          <fieldset id="a-encargados"><legend>Encargados * <span class="muted">(al menos uno, del personal activo)</span></legend><div class="chips"></div><p id="a-encargados-error" class="error-campo" hidden></p></fieldset>
+          <fieldset id="a-personal"><legend>Personal que acudirá <span class="muted">(del personal activo)</span></legend><div class="chips"></div><p id="a-personal-error" class="error-campo" hidden></p></fieldset>
+          <div class="campos">
+            <div class="campo"><label for="a-asistentes_proyectados">Asistentes proyectados</label><input id="a-asistentes_proyectados" name="asistentes_proyectados" type="number" min="0" step="1" inputmode="numeric" aria-describedby="a-asistentes_proyectados-error"><p id="a-asistentes_proyectados-error" class="error-campo" hidden></p></div>
+            <div class="campo ancho"><label for="a-observaciones">Observaciones</label><textarea id="a-observaciones" name="observaciones" rows="3" maxlength="2000" aria-describedby="a-observaciones-error"></textarea><p id="a-observaciones-error" class="error-campo" hidden></p></div>
+          </div>
+          <div class="acciones"><button id="a-guardar" type="submit" class="primario">Guardar actividad</button><button id="a-cancelar" type="button">Cancelar</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div id="vista-personal" class="vista" role="region" aria-labelledby="personal-titulo" tabindex="-1" hidden>
+      <div class="card">
+        <div class="cabecera"><h2 id="personal-titulo">Personal de la organización</h2><button id="p-nuevo" type="button" class="primario" hidden>Agregar persona</button></div>
+        <p id="personal-aviso" class="info" hidden></p>
+        <div id="personal-cuerpo" hidden>
+          <div class="segmentos" role="group" aria-label="Personas que se muestran">
+            <button type="button" data-ver="activos" aria-pressed="true">Activos</button><button type="button" data-ver="todos" aria-pressed="false">Todos</button>
+          </div>
+          <p id="personal-estado" class="muted" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table id="tabla-personal" hidden>
+              <thead><tr><th>Nombre</th><th>Cargo</th><th>Teléfono</th><th>Correo</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="p-form-card" class="card registro" hidden>
+        <h2 id="p-form-titulo" tabindex="-1">Agregar persona</h2>
+        <p id="p-form-estado" class="error-inline" role="alert" hidden></p>
+        <form id="form-personal" novalidate>
+          <div class="campos">
+            <div class="campo"><label for="p-nombre">Nombre *</label><input id="p-nombre" name="nombre" maxlength="150" autocomplete="off" aria-describedby="p-nombre-error"><p id="p-nombre-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="p-cargo">Cargo *</label><input id="p-cargo" name="cargo" maxlength="100" autocomplete="off" aria-describedby="p-cargo-error"><p id="p-cargo-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="p-telefono">Teléfono</label><input id="p-telefono" name="telefono" type="tel" maxlength="50" autocomplete="off" aria-describedby="p-telefono-error"><p id="p-telefono-error" class="error-campo" hidden></p></div>
+            <div class="campo"><label for="p-correo">Correo</label><input id="p-correo" name="correo" type="email" maxlength="150" autocomplete="off" aria-describedby="p-correo-error"><p id="p-correo-error" class="error-campo" hidden></p></div>
+          </div>
+          <div class="acciones"><button id="p-guardar" type="submit" class="primario">Guardar</button><button id="p-cancelar" type="button">Cancelar</button></div>
+        </form>
+      </div>
     </div>
   </section>
 </main>
 
 <dialog id="detalle" aria-labelledby="detalle-titulo"><form method="dialog"><button class="close" aria-label="Cerrar">×</button></form><div id="detalle-body"></div></dialog>
+<dialog id="actividad" aria-labelledby="actividad-titulo"><form method="dialog"><button class="close" aria-label="Cerrar">×</button></form><div id="actividad-body"></div></dialog>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/chart.umd.js"></script>
