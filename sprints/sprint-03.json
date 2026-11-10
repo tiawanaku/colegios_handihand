@@ -2,7 +2,7 @@
   "formato": "sprint-handihand/1",
   "proyecto": "colegios_handihand",
   "sprint": 3,
-  "objetivo": "Corregir los datos de los colegios y organizar visitas y reuniones en una agenda.",
+  "objetivo": "Corregir los datos de cualquier colegio con bitácora, registrar al personal de la organización y programar actividades en los colegios con encargados y asistentes.",
   "inicio": "2026-12-01",
   "fin": "2026-12-12",
   "dod": [
@@ -24,25 +24,88 @@
       "rol": "Frontend y experiencia"
     }
   },
-  "nota": "Acta N.º 2 aprobada por la dueña del proyecto sin firma del cliente. Sprint planificado, sin ejecutar.",
+  "nota": "Acta N.º 3 firmada por el cliente. HU-08 y HU-09 reemplazan a HU-05 y HU-06. 26 puntos (velocidad 21): HU-09 depende de HU-10.",
   "historias": [
     {
-      "codigo": "HU-05",
-      "titulo": "Modificar datos de colegios",
-      "prioridad": "SHOULD",
-      "puntos": 8,
-      "como": "encargado de la base de datos",
-      "quiero": "corregir los datos de un colegio existente (teléfono, dirección, turno y otros)",
-      "para": "mantener la información al día",
+      "codigo": "HU-10",
+      "titulo": "Registro de personal de la Dirección",
+      "prioridad": "MUST",
+      "puntos": 5,
+      "como": "personal autorizado de la organización",
+      "quiero": "registrar y mantener una lista del personal de la organización (nombre, cargo y datos de contacto)",
+      "para": "elegirlo como encargado o personal que acudirá en las actividades de la agenda",
       "criterios": [
-        "Dado que abro la ficha de un colegio, cuando edito y guardo, entonces los nuevos datos se ven en todo el sistema",
-        "Dado que guardo un cambio, entonces queda registrado quién y cuándo lo hizo",
-        "Dado que no inicié sesión, entonces no puedo modificar"
+        "Dado que entro a Personal, cuando escribo nombre y cargo y guardo, entonces la persona queda en la lista.",
+        "Dado una persona registrada, cuando edito sus datos o la marco como inactiva, entonces el cambio se guarda y deja de aparecer para nuevas actividades.",
+        "Dado que creo una actividad en la agenda, cuando asigno encargados o personal que acudirá, entonces los elijo de esta lista.",
+        "Dado que no he iniciado sesión, entonces no puedo ver ni modificar el registro de personal."
       ],
       "tareas": [
         {
-          "id": "HU-05#1",
-          "titulo": "Correcciones guardadas como capa propia sobre la vista (y edición directa de los registrados), con historial de quién y cuándo",
+          "id": "HU-10#1",
+          "titulo": "Tabla y API /api/personal: alta, edición y activo/inactivo (nombre, cargo, teléfono, correo); sesión obligatoria",
+          "tipo": "backend",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-10#2",
+          "titulo": "Pruebas de API del personal",
+          "tipo": "pruebas",
+          "horas": 2,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-10#3",
+          "titulo": "Sección Personal: lista, alta, edición y activar o inactivar; página publicada con personal en la base compartida",
+          "tipo": "frontend",
+          "horas": 5,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-10#4",
+          "titulo": "Pruebas e2e del personal",
+          "tipo": "pruebas",
+          "horas": 2,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        }
+      ]
+    },
+    {
+      "codigo": "HU-08",
+      "titulo": "Buscar y editar datos de un colegio",
+      "prioridad": "MUST",
+      "puntos": 8,
+      "como": "personal autorizado de la Dirección Distrital",
+      "quiero": "buscar un colegio, seleccionarlo y abrir su registro para editar todos sus datos",
+      "para": "corregir la información de los colegios y mantenerla actualizada",
+      "criterios": [
+        "Dado que entro a Correcciones, cuando escribo parte del nombre del colegio, entonces veo una lista de coincidencias y puedo seleccionar una.",
+        "Dado un colegio seleccionado, cuando abro su registro, entonces puedo modificar todos sus datos (nombre, dirección, zona, teléfono, distrito, niveles, turnos, coordenadas, etc.) y guardar.",
+        "Dado que guardo un cambio, entonces el sistema registra quién lo hizo, cuándo y qué valor tenía antes y después.",
+        "Dado que no he iniciado sesión, entonces no puedo editar ningún registro."
+      ],
+      "tareas": [
+        {
+          "id": "HU-08#1",
+          "titulo": "Capa propia de correcciones sobre la vista (y edición directa de los registrados) con bitácora campo a campo: quién, cuándo, antes y después",
+          "tipo": "datos",
+          "horas": 5,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-08#2",
+          "titulo": "PATCH /api/unidades/{id}: valida el registro completo con las reglas del registro; correcciones visibles en listado, filtros, mapa, estadísticas, ficha, exportaciones y página estática; historial con los cambios",
           "tipo": "backend",
           "horas": 8,
           "asignado": "DEV1",
@@ -50,8 +113,17 @@
           "plan": ""
         },
         {
-          "id": "HU-05#2",
-          "titulo": "Edición desde la ficha del colegio, con validación y recarga",
+          "id": "HU-08#3",
+          "titulo": "Pruebas de API: el cambio se ve en todo el sistema, la bitácora guarda antes y después, sin sesión 401, sin cambios 422, dado de baja 409",
+          "tipo": "pruebas",
+          "horas": 3,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-08#4",
+          "titulo": "Sección Correcciones: buscador con coincidencias, seleccionar colegio, abrir su registro en un formulario de edición con todos los datos y su bitácora",
           "tipo": "frontend",
           "horas": 6,
           "asignado": "DEV2",
@@ -59,33 +131,44 @@
           "plan": ""
         },
         {
-          "id": "HU-05#3",
-          "titulo": "Pruebas: el cambio se ve en todo el sistema, queda en el historial y exige sesión",
+          "id": "HU-08#5",
+          "titulo": "Página publicada: correcciones guardadas en la base compartida, con las mismas reglas",
+          "tipo": "frontend",
+          "horas": 3,
+          "asignado": "DEV2",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-08#6",
+          "titulo": "Pruebas e2e: buscar, editar, ver el cambio en el dashboard y en la bitácora",
           "tipo": "pruebas",
           "horas": 3,
-          "asignado": "DEV1",
+          "asignado": "DEV2",
           "estado": "pendiente",
           "plan": ""
         }
       ]
     },
     {
-      "codigo": "HU-06",
-      "titulo": "Agenda de visitas y reuniones",
-      "prioridad": "SHOULD",
+      "codigo": "HU-09",
+      "titulo": "Programar actividades en colegios en agenda",
+      "prioridad": "MUST",
       "puntos": 13,
-      "como": "técnico o encargado",
-      "quiero": "agendar visitas a colegios y reuniones con fecha, hora y colegio relacionado",
-      "para": "organizar el trabajo de campo",
+      "como": "personal de la organización",
+      "quiero": "programar talleres, visitas, reuniones u otras actividades en los colegios, registrando encargados, personal que acudirá y proyección de asistentes",
+      "para": "organizar y dar seguimiento a las actividades en cada colegio",
       "criterios": [
-        "Dado que creo una visita o reunión, entonces aparece en la agenda en su fecha",
-        "Dado que una visita es a un colegio, entonces puedo verla desde la ficha de ese colegio",
-        "Dado que cambio o cancelo una cita, entonces la agenda se actualiza"
+        "Dado que creo una actividad, cuando elijo el colegio, tipo (taller, visita, reunión u otra), fecha, hora y lugar, entonces queda guardada en la agenda.",
+        "Dado una actividad, cuando asigno encargados y personal que acudirá, entonces aparecen en el detalle de la actividad.",
+        "Dado una actividad, cuando anoto la proyección de asistentes y observaciones, entonces se guardan y se pueden ver después.",
+        "Dado una actividad, cuando cambio su estado (pendiente, realizada u otro), entonces la agenda muestra el estado actualizado.",
+        "Dado que entro a la agenda, entonces puedo ver las actividades por fecha y por colegio."
       ],
       "tareas": [
         {
-          "id": "HU-06#1",
-          "titulo": "Tabla propia de citas (visita o reunión, fecha, hora, colegio opcional, notas)",
+          "id": "HU-09#1",
+          "titulo": "Tabla de actividades (colegio, tipo, actividad, fecha, hora, lugar, encargados, personal, proyección de asistentes, observaciones, estado) con autor y fechas",
           "tipo": "datos",
           "horas": 4,
           "asignado": "DEV1",
@@ -93,8 +176,8 @@
           "plan": ""
         },
         {
-          "id": "HU-06#2",
-          "titulo": "API de agenda: crear, listar por rango, modificar y cancelar; sesión obligatoria",
+          "id": "HU-09#2",
+          "titulo": "API /api/actividades: crear, listar por rango, colegio y estado, modificar y cambiar estado; solo personal activo para asignaciones nuevas; sesión obligatoria",
           "tipo": "backend",
           "horas": 8,
           "asignado": "DEV1",
@@ -102,8 +185,17 @@
           "plan": ""
         },
         {
-          "id": "HU-06#3",
-          "titulo": "Sección Agenda con vista de calendario semanal y mensual, y formulario de cita",
+          "id": "HU-09#3",
+          "titulo": "Pruebas de API de la agenda",
+          "tipo": "pruebas",
+          "horas": 4,
+          "asignado": "DEV1",
+          "estado": "pendiente",
+          "plan": ""
+        },
+        {
+          "id": "HU-09#4",
+          "titulo": "Sección Agenda: vista mensual y lista por fecha, filtros por colegio y estado, formulario con buscador de colegio y selección de encargados y personal, detalle y cambio de estado",
           "tipo": "frontend",
           "horas": 10,
           "asignado": "DEV2",
@@ -111,19 +203,19 @@
           "plan": ""
         },
         {
-          "id": "HU-06#4",
-          "titulo": "Citas del colegio en su ficha",
+          "id": "HU-09#5",
+          "titulo": "Actividades del colegio en su ficha y página publicada con agenda en la base compartida",
           "tipo": "frontend",
-          "horas": 3,
+          "horas": 4,
           "asignado": "DEV2",
           "estado": "pendiente",
           "plan": ""
         },
         {
-          "id": "HU-06#5",
-          "titulo": "Pruebas e2e y de API de la agenda",
+          "id": "HU-09#6",
+          "titulo": "Pruebas e2e de la agenda",
           "tipo": "pruebas",
-          "horas": 4,
+          "horas": 3,
           "asignado": "DEV2",
           "estado": "pendiente",
           "plan": ""
